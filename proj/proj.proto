@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package proj;
+
+// KVPair to store key-value pairs
+message KVPair {
+    string key = 1;
+    string val = 2;
+}
+
+// Hash as a 32-byte fixed-length byte array
+message Hash {
+    bytes hash = 1;
+}
+
+// NodePointer to reference a node with an IP address and ID
+message NodePointer {
+    string ipAddress = 1;
+    Hash id = 2;
+}
+
+// Node data structure with its properties
+message Node {
+    map<string, KVPair> data = 1;
+    Hash id = 2;
+    string ipAddress = 3;
+    repeated NodePointer fingerTable = 4;
+    NodePointer pred = 5;
+    NodePointer succ = 6;
+}
+
+// Request and response messages for RPC services
+message FindSuccessorRequest {
+    Hash id = 1;
+}
+
+message FindSuccessorResponse {
+    NodePointer successor = 1;
+}
+
+message JoinRingRequest {
+    NodePointer existingNode = 1;
+}
+
+message JoinRingResponse {
+    bool success = 1;
+}
+
+message NotifyRequest {
+    NodePointer node = 1;
+}
+
+message NotifyResponse {
+    bool acknowledged = 1;
+}
+
+message ClosestPrecedingNodeRequest {
+    Hash id = 1;
+}
+
+message ClosestPrecedingNodeResponse {
+    NodePointer node = 1;
+}
+
+// Service for Node RPC interactions
+service NodeService {
+    rpc FindSuccessor (FindSuccessorRequest) returns (FindSuccessorResponse);
+    rpc JoinRing (JoinRingRequest) returns (JoinRingResponse);
+    rpc Notify (NotifyRequest) returns (NotifyResponse);
+    rpc ClosestPrecedingNode (ClosestPrecedingNodeRequest) returns (ClosestPrecedingNodeResponse);
+}
