@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chord-url-shortening
+spec:
+  selector:
+    matchLabels:
+      app: chord-url-shortening
+  replicas: 5
+  template:
+    metadata:
+      labels:
+        app: chord-url-shortening
+    spec:
+      containers:
+      - name: chord-url-shortening
+        image: chord-url-shortening:v1.0
+        imagePullPolicy: Never
+        env:
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 8080
+        - containerPort: 50051
