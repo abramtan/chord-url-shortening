@@ -1,6 +1,8 @@
 syntax = "proto3";
 
-package proj;
+option go_package = "chord-url-shortening/chordurlshortening";
+
+package chordurlshortening;
 
 // KVPair to store key-value pairs
 message KVPair {
@@ -62,10 +64,19 @@ message ClosestPrecedingNodeResponse {
     NodePointer node = 1;
 }
 
+message GetIpRequest {
+    string node_id = 1;
+}
+
+message GetIpResponse {
+    string ipAddress = 1;
+}
+
 // Service for Node RPC interactions
 service NodeService {
     rpc FindSuccessor (FindSuccessorRequest) returns (FindSuccessorResponse);
     rpc JoinRing (JoinRingRequest) returns (JoinRingResponse);
     rpc Notify (NotifyRequest) returns (NotifyResponse);
     rpc ClosestPrecedingNode (ClosestPrecedingNodeRequest) returns (ClosestPrecedingNodeResponse);
+    rpc GetNodeIp(GetIpRequest) returns (GetIpResponse);
 }
