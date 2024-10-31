@@ -2,6 +2,7 @@ package main
 
 import (
 	"chord-url-shortening/internal/utils"
+	"chord-url-shortening/internal/chord"
 	"context"
 	"time"
 
@@ -32,6 +33,8 @@ func main() {
 	var CHORD_URL_SHORTENING_SERVICE_HOST string = utils.GetEnvString("CHORD_URL_SHORTENING_SERVICE_HOST", "0.0.0.0")
 	var CHORD_URL_SHORTENING_SERVICE_PORT int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT", 8080)
 	var CHORD_URL_SHORTENING_SERVICE_PORT_GRPC int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT_GRPC", 50051)
+
+	
 
 	fmt.Println("\n\n------------------------------------------------")
 	fmt.Println("           Environment variables used           ")
@@ -131,6 +134,16 @@ func main() {
 	if err := router.Run(fmt.Sprintf(":%d", HTTP_PORT)); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+
+	node := chord.CreateNode(POD_IP)
+
+	node.JoinRingIfExistsElseCreateRing() // create ring if no ring, else join existing ring
+
+	
+}
+
+func (np NodePointer) JoinRingIfExistsElseCreateRing {
+	
 }
 
 // Function to start the gRPC server
@@ -153,15 +166,4 @@ func startGRPCServer(port int) {
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("Failed to serve gRPC server: %v", err)
 	}
-}
-
-// NodeService implements the NodeServiceServer interface
-type NodeService struct {
-	pb.UnimplementedNodeServiceServer
-}
-
-// GetNodeIp handles GetIpRequest and returns the corresponding GetIpResponse
-func (s *NodeService) GetNodeIp(ctx context.Context, req *pb.GetIpRequest) (*pb.GetIpResponse, error) {
-	var POD_IP string = utils.GetEnvString("POD_IP", "0.0.0.0")
-	return &pb.GetIpResponse{IpAddress: POD_IP}, nil
 }

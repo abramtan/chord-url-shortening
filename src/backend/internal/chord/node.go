@@ -10,6 +10,7 @@ import (
 	"net/rpc"
 	"strconv"
 	"sync"
+	pb "chord-url-shortening/chordurlshortening"
 )
 
 type KVPair struct {
@@ -24,6 +25,10 @@ type NodePointer struct {
 	id        Hash
 }
 
+func (np *NodePointer) isNil() bool {
+	return *np == NodePointer{}
+}
+
 type Node struct {
 	data        map[Hash]KVPair
 	id          Hash
@@ -34,8 +39,8 @@ type Node struct {
 	mu          sync.Mutex
 }
 
-func createNode() *Node {
-	ipAddress := getGlobalNodeIPAddress()
+func CreateNode(podIP string) *Node {
+	ipAddress := podIP
 	newNode := Node{
 		data:      make(map[Hash]KVPair),
 		id:        sha256.Sum256([]byte(ipAddress)),
@@ -44,7 +49,7 @@ func createNode() *Node {
 	return &newNode
 }
 
-func toUInt64(h Hash) uint64 {
+func ToUInt64(h Hash) uint64 {
 	toF64 := float64(binary.BigEndian.Uint64(h[:8]))
 	modded := float64(math.Pow(2, 32))
 	res := math.Mod(toF64, modded)
@@ -63,7 +68,7 @@ func (h1 Hash) Compare(h2 Hash) int {
 	}
 }
 
-func idBetween(id Hash, n *Node) bool {
+func IdBetween(id Hash, n *Node) bool {
 	nID := n.id
 	succID := n.succ.id
 	if nID.Compare(succID) == 0 {
@@ -75,11 +80,11 @@ func idBetween(id Hash, n *Node) bool {
 	}
 }
 
-func (n *Node) initRPC() {
-	// create and bind to a tcp port
-	l, err := net.Listen("tcp", n.ipAddress) //?
+// func (n *Node) initRPC() {
+// 	// create and bind to a tcp port
+// 	l, err := net.Listen("tcp", n.ipAddress) //?
 
-}
+// }
 
 func (n *Node) rpcCall(np NodePointer, funcName String) {
 	client, err := rpc.Dial("tcp", np.ipAddress)
@@ -115,17 +120,35 @@ func (n *Node) closestPrecedingNode(id Hash) NodePointer {
 	return n
 }
 
-func (n *Node) joinRing(existingNode NodePointer) {
-	if existingNode == nil {
-		n.createRing()
+func (n *Node) CheckIfRingExists() {
+	req := &pb.GetIpRequest{NodeId: POD_IP}
+	res, err := client.GetNodeIp(ctx, req)
+	if err != nil {
+		log.Printf("Could not get other pod's IP: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get other pod's IP"})
 	}
-	n.pred = nil
+}
+
+func (n* Node) JoinRingIfExistsElseCreateRing() {
+	if n.CheckIfRingExists() {
+		n.JoinRing()
+	} else {
+		n.CreateRing()
+	}
+}
+
+func (n *Node) JoinRing(existingNode NodePointer) {
+	n.pred = NodePointer {}
+	
 	n.succ = existingNode.findSuccessor(n.id)
 }
 
-func (n *Node) createRing() {
-	n.pred = nil
-	n.succ = n
+func (n *Node) CreateRing() {
+	n.pred = NodePointer {}
+	n.succ = NodePointer{
+		ipAddress: n.ipAddress,
+		id: n.id,
+	}
 	fmt.Print("Node %d created a new ring.\n", n.id)
 }
 
@@ -139,9 +162,9 @@ func (n *Node) Notify(nNode NodePointer) {
 	}
 }
 
-var globalNodeIPAddress int
+// var globalNodeIPAddress int
 
-func getGlobalNodeIPAddress() string {
-	globalNodeIPAddress++
-	return strconv.Itoa(globalNodeIPAddress)
-}
+// func getGlobalNodeIPAddress() string {
+// 	globalNodeIPAddress++
+// 	return strconv.Itoa(globalNodeIPAddress)
+// }
