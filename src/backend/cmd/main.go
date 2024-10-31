@@ -135,14 +135,10 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 
-	node := chord.CreateNode(POD_IP)
+	node := chord.CreateNode(chord.IPAddress(POD_IP))
 
 	node.JoinRingIfExistsElseCreateRing() // create ring if no ring, else join existing ring
 
-	
-}
-
-func (np NodePointer) JoinRingIfExistsElseCreateRing {
 	
 }
 
@@ -166,4 +162,15 @@ func startGRPCServer(port int) {
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("Failed to serve gRPC server: %v", err)
 	}
+}
+
+// NodeService implements the NodeServiceServer interface
+type NodeService struct {
+	pb.UnimplementedNodeServiceServer
+}
+
+// GetNodeIp handles GetIpRequest and returns the corresponding GetIpResponse
+func (s *NodeService) GetNodeIp(ctx context.Context, req *pb.GetIpRequest) (*pb.GetIpResponse, error) {
+	var POD_IP string = utils.GetEnvString("POD_IP", "0.0.0.0")
+	return &pb.GetIpResponse{IpAddress: POD_IP}, nil
 }
