@@ -6,7 +6,7 @@ spec:
   selector:
     matchLabels:
       app: chord-url-shortening
-  replicas: 5
+  replicas: 2
   template:
     metadata:
       labels:

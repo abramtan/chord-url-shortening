@@ -1,6 +1,7 @@
 package chord
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
@@ -8,16 +9,15 @@ import (
 	"math"
 	"net/rpc"
 	"sync"
+	"time"
 
 	"chord-url-shortening/internal/utils"
-)
 
-var GRPC_PORT int = utils.GetEnvInt("GRPC_PORT", 50051)
-var HTTP_PORT int = utils.GetEnvInt("HTTP_PORT", 8080)
-var POD_IP string = utils.GetEnvString("POD_IP", "0.0.0.0")
-var CHORD_URL_SHORTENING_SERVICE_HOST string = utils.GetEnvString("CHORD_URL_SHORTENING_SERVICE_HOST", "0.0.0.0")
-var CHORD_URL_SHORTENING_SERVICE_PORT int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT", 8080)
-var CHORD_URL_SHORTENING_SERVICE_PORT_GRPC int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT_GRPC", 50051)
+	// "google.golang.org/grpc"
+	// "google.golang.org/grpc/credentials/insecure"
+
+	pb "chord-url-shortening/chordurlshortening"
+)
 
 type KVPair struct {
 	key string
@@ -32,13 +32,13 @@ func (ip IPAddress) getID() Hash {
 	return sha256.Sum256([]byte(ip))
 }
 
+func (ip IPAddress) isNil() bool {
+	return ip == ""
+}
+
 // type NodePointer struct {
 // 	ipAddress string
 // 	id        Hash
-// }
-
-// func (np *NodePointer) isNil() bool {
-// 	return *np == NodePointer{}
 // }
 
 type Node struct {
@@ -80,9 +80,10 @@ func (h1 Hash) Compare(h2 Hash) int {
 	}
 }
 
-func (n *Node) IdBetween(id Hash) bool {
+func (n *Node) IdBetween(ipAddress IPAddress) bool {
 	nID := n.IpAddress.getID()
 	succID := n.Succ.getID()
+	id := ipAddress.getID()
 	if nID.Compare(succID) == 0 {
 		return true
 	} else if nID.Compare(succID) == -1 {
@@ -144,22 +145,34 @@ func (n *Node) rpcCall(np IPAddress, funcName string) {
 // 	}
 // }
 
-func (n *Node) ClosestPrecedingNode(id Hash) IPAddress {
+func (n *Node) ClosestPrecedingNode(id IPAddress) IPAddress {
+	idHash := id.getID()
 	for i := len(n.FingerTable) - 1; i >= 0; i-- {
 		finger := n.FingerTable[i]
-		if finger != nil && n.id.Compare(finger.id) == -1 && finger.id.Compare(id) == -1 {
+		fingerID := n.FingerTable[i].getID()
+		if finger.isNil() && n.IpAddress.getID().Compare(idHash) == -1 && fingerID.Compare(idHash) == -1 {
 			return finger
 		}
 	}
-	return n
+	return n.IpAddress
 }
 
 // Each incoming node checks 5 times, if its IP is returned 5 times, return ”
 func (n *Node) CheckIfRingExists() IPAddress {
 	for i := 0; i < 5; i++ {
-		otherIP := n.GetOtherPodIP()
-		if otherIP != n.IpAddress {
-			return otherIP
+		time.Sleep(time.Second*1)
+        
+        otherClient := utils.GetClientPod(utils.CHORD_URL_SHORTENING_SERVICE_HOST)
+		req := &pb.GetIpRequest{NodeId: string(n.IpAddress)}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		otherIP, err := otherClient.GetNodeIp(ctx, req)
+		if err != nil {
+			log.Printf("Could not get other pod's IP: %v", err)
+		}
+		if IPAddress(otherIP.IpAddress) != n.IpAddress {
+			return IPAddress(otherIP.IpAddress)
 		}
 	}
 	return ""
@@ -176,25 +189,36 @@ func (n *Node) JoinRingIfExistsElseCreateRing() {
 
 func (n *Node) JoinRing(existingRingNodeIP IPAddress) {
 	n.Pred = ""
-	//
-	n.Succ = existingRingNodeIP.FindSuccessor(n.id)
+	// create client pod
+	// call clientpod (existingRingNodeIP)
+	client := utils.GetClientPod(string(existingRingNodeIP))
+	req := &pb.FindSuccessorRequest{Id: string(existingRingNodeIP)}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	res, err := client.FindSuccessor(ctx, req)
+	if err != nil {
+		log.Printf("Join Ring - could not get find sucessor: %v", err)
+	}
+	n.Succ = IPAddress(res.Successor)
 }
 
 func (n *Node) CreateRing() {
 	n.Pred = ""
 	n.Succ = n.IpAddress
-	fmt.Print("Node %d created a new ring.\n", n.id)
+	fmt.Print("Node %d created a new ring.\n", n.IpAddress.getID())
 }
 
-func (n *Node) stabilize() {
-	succPred := n.Succ.pred
-}
+// func (n *Node) stabilize() {
+// 	succPred := n.Succ.pred
+// }
 
-func (n *Node) Notify(nNode IPAddress) {
-	if n.Pred == nil || (n.Pred.id.Compare(nNode.id) == -1 && nNode.id.Compare(n.id) == -1) {
-		n.Pred = nNode
-	}
-}
+// func (n *Node) Notify(nNode IPAddress) {
+// 	if n.Pred == nil || (n.Pred.id.Compare(nNode.id) == -1 && nNode.id.Compare(n.id) == -1) {
+// 		n.Pred = nNode
+// 	}
+// }
 
 // var globalNodeIPAddress int
 
