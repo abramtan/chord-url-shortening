@@ -21,14 +21,18 @@ message NodePointer {
     Hash id = 2;
 } */
 
+message IPAddress {
+    string ipAddress = 1;
+} 
+
 // Node data structure with its properties
 message Node {
     map<string, KVPair> data = 1;
     Hash id = 2;
     string ipAddress = 3;
-    repeated IpAddress fingerTable = 4;
-    IpAddress pred = 5;
-    IpAddress succ = 6;
+    repeated IPAddress fingerTable = 4;
+    IPAddress pred = 5;
+    IPAddress succ = 6;
 }
 
 // Request and response messages for RPC services
@@ -37,7 +41,7 @@ message FindSuccessorRequest {
 }
 
 message FindSuccessorResponse {
-    IpAddress successor = 1;
+    IPAddress successor = 1;
 }
 
 message JoinRingRequest {
@@ -49,7 +53,7 @@ message JoinRingResponse {
 }
 
 message NotifyRequest {
-    IpAddress node = 1;
+    IPAddress node = 1;
 }
 
 message NotifyResponse {
@@ -57,11 +61,11 @@ message NotifyResponse {
 }
 
 message ClosestPrecedingNodeRequest {
-    IpAddress id = 1;
+    IPAddress id = 1;
 }
 
 message ClosestPrecedingNodeResponse {
-    IpAddress node = 1;
+    IPAddress node = 1;
 }
 
 message GetIpRequest {
