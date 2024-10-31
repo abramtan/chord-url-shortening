@@ -29,7 +29,7 @@ var CHORD_URL_SHORTENING_SERVICE_HOST string = utils.GetEnvString("CHORD_URL_SHO
 var CHORD_URL_SHORTENING_SERVICE_PORT int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT", 8080)
 var CHORD_URL_SHORTENING_SERVICE_PORT_GRPC int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT_GRPC", 50051)
 
-func getClient() pb.NodeServiceClient {
+func getClientPod(ipAddress string) pb.NodeServiceClient {
 	// Set up a grpc connection to another pod via cluster IP (which pod is dependent on how k8s load balances, since using cluster IP, can be itself)
 	conn, err := grpc.NewClient(
 		fmt.Sprintf("%s:%d", CHORD_URL_SHORTENING_SERVICE_HOST, CHORD_URL_SHORTENING_SERVICE_PORT_GRPC),
@@ -39,9 +39,7 @@ func getClient() pb.NodeServiceClient {
 		log.Printf("Did not connect: %v", err)
 	}
 	defer conn.Close()
-
 	client := pb.NewNodeServiceClient(conn)
-
 	return client
 }
 
@@ -191,6 +189,7 @@ func (s *NodeService) GetNodeIp(ctx context.Context, req *pb.GetIpRequest) (*pb.
 	return &pb.GetIpResponse{IpAddress: POD_IP}, nil
 }
 
+// TODO: no finger table implemented 
 func (s *NodeService) FindSuccessor(ctx context.Context, req *pb.FindSuccessorRequest) (*pb.FindSuccessorResponse, error) {
 	// var POD_IP string = utils.GetEnvString("POD_IP", "0.0.0.0")
 
