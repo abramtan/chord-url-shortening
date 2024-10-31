@@ -33,7 +33,7 @@ message Node {
 
 // Request and response messages for RPC services
 message FindSuccessorRequest {
-    Hash id = 1;
+    string id = 1;
 }
 
 message FindSuccessorResponse {
@@ -41,7 +41,7 @@ message FindSuccessorResponse {
 }
 
 message JoinRingRequest {
-    IpAddress existingNode = 1;
+    string existingNodeIp = 1;
 }
 
 message JoinRingResponse {

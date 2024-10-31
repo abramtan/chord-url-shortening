@@ -1,8 +1,8 @@
 package main
 
 import (
-	"chord-url-shortening/internal/utils"
 	"chord-url-shortening/internal/chord"
+	"chord-url-shortening/internal/utils"
 	"context"
 	"time"
 
@@ -20,21 +20,37 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var node *chord.Node
+
+var GRPC_PORT int = utils.GetEnvInt("GRPC_PORT", 50051)
+var HTTP_PORT int = utils.GetEnvInt("HTTP_PORT", 8080)
+var POD_IP string = utils.GetEnvString("POD_IP", "0.0.0.0")
+var CHORD_URL_SHORTENING_SERVICE_HOST string = utils.GetEnvString("CHORD_URL_SHORTENING_SERVICE_HOST", "0.0.0.0")
+var CHORD_URL_SHORTENING_SERVICE_PORT int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT", 8080)
+var CHORD_URL_SHORTENING_SERVICE_PORT_GRPC int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT_GRPC", 50051)
+
+func getClient() pb.NodeServiceClient {
+	// Set up a grpc connection to another pod via cluster IP (which pod is dependent on how k8s load balances, since using cluster IP, can be itself)
+	conn, err := grpc.NewClient(
+		fmt.Sprintf("%s:%d", CHORD_URL_SHORTENING_SERVICE_HOST, CHORD_URL_SHORTENING_SERVICE_PORT_GRPC),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		log.Printf("Did not connect: %v", err)
+	}
+	defer conn.Close()
+
+	client := pb.NewNodeServiceClient(conn)
+
+	return client
+}
+
 func main() {
 	// Load environment variables from .env file
 	err := godotenv.Load()
 	if err != nil {
 		log.Println("Error loading .env file")
 	}
-
-	var GRPC_PORT int = utils.GetEnvInt("GRPC_PORT", 50051)
-	var HTTP_PORT int = utils.GetEnvInt("HTTP_PORT", 8080)
-	var POD_IP string = utils.GetEnvString("POD_IP", "0.0.0.0")
-	var CHORD_URL_SHORTENING_SERVICE_HOST string = utils.GetEnvString("CHORD_URL_SHORTENING_SERVICE_HOST", "0.0.0.0")
-	var CHORD_URL_SHORTENING_SERVICE_PORT int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT", 8080)
-	var CHORD_URL_SHORTENING_SERVICE_PORT_GRPC int = utils.GetEnvInt("CHORD_URL_SHORTENING_SERVICE_PORT_GRPC", 50051)
-
-	
 
 	fmt.Println("\n\n------------------------------------------------")
 	fmt.Println("           Environment variables used           ")
@@ -135,11 +151,10 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 
-	node := chord.CreateNode(chord.IPAddress(POD_IP))
+	node = chord.CreateNode(chord.IPAddress(POD_IP))
 
 	node.JoinRingIfExistsElseCreateRing() // create ring if no ring, else join existing ring
 
-	
 }
 
 // Function to start the gRPC server
@@ -167,10 +182,48 @@ func startGRPCServer(port int) {
 // NodeService implements the NodeServiceServer interface
 type NodeService struct {
 	pb.UnimplementedNodeServiceServer
+	node *chord.Node
 }
 
 // GetNodeIp handles GetIpRequest and returns the corresponding GetIpResponse
 func (s *NodeService) GetNodeIp(ctx context.Context, req *pb.GetIpRequest) (*pb.GetIpResponse, error) {
 	var POD_IP string = utils.GetEnvString("POD_IP", "0.0.0.0")
 	return &pb.GetIpResponse{IpAddress: POD_IP}, nil
+}
+
+func (s *NodeService) FindSuccessor(ctx context.Context, req *pb.FindSuccessorRequest) (*pb.FindSuccessorResponse, error) {
+	// var POD_IP string = utils.GetEnvString("POD_IP", "0.0.0.0")
+
+	if node.IdBetween(req.id) { // Take the ID to be found and compare it
+		return &pb.FindSuccessorResponse{successor: node.Succ}, nil
+	} else {
+
+		// returns IPAddress
+		highestPredOfId := node.ClosestPrecedingNode(req.id)
+
+		// Set up gRPC to highestPred
+		conn, err := grpc.NewClient(
+			fmt.Sprintf("%s:%d", highestPredOfId, CHORD_URL_SHORTENING_SERVICE_PORT_GRPC),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		if err != nil {
+			log.Printf("Did not connect: %v", err)
+		}
+		defer conn.Close()
+
+		client := pb.NewNodeServiceClient(conn)
+
+		// Perform gRPC call to get the IP of another pod
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		req := &pb.FindSuccessorRequest{id: req.id}
+		res, err := client.FindSuccessor(ctx, req)
+		if err != nil {
+			log.Printf("Could not get other pod's IP: %v", err)
+		}
+
+		// grpc call here to the other node to find findSuccessor?
+		return &pb.FindSuccessorResponse{successor: res.IpAddress}, nil
+	}
 }

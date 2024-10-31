@@ -1,7 +1,6 @@
 package chord
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
@@ -9,12 +8,7 @@ import (
 	"math"
 	"net/rpc"
 	"sync"
-	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
-	pb "chord-url-shortening/chordurlshortening"
 	"chord-url-shortening/internal/utils"
 )
 
@@ -48,21 +42,21 @@ func (ip IPAddress) getID() Hash {
 // }
 
 type Node struct {
-	data map[Hash]KVPair
+	Data map[Hash]KVPair
 	// id          Hash
-	ipAddress   IPAddress
-	fingerTable []IPAddress
-	pred        IPAddress
-	succ        IPAddress
+	IpAddress   IPAddress
+	FingerTable []IPAddress
+	Pred        IPAddress
+	Succ        IPAddress
 	mu          sync.Mutex
 }
 
 func CreateNode(podIP IPAddress) *Node {
 	ipAddress := podIP
 	newNode := Node{
-		data: make(map[Hash]KVPair),
+		Data: make(map[Hash]KVPair),
 		// id:        sha256.Sum256([]byte(ipAddress)),
-		ipAddress: ipAddress,
+		IpAddress: ipAddress,
 	}
 	return &newNode
 }
@@ -86,9 +80,9 @@ func (h1 Hash) Compare(h2 Hash) int {
 	}
 }
 
-func IdBetween(id Hash, n *Node) bool {
-	nID := n.ipAddress.getID()
-	succID := n.succ.getID()
+func (n *Node) IdBetween(id Hash) bool {
+	nID := n.IpAddress.getID()
+	succID := n.Succ.getID()
 	if nID.Compare(succID) == 0 {
 		return true
 	} else if nID.Compare(succID) == -1 {
@@ -98,36 +92,35 @@ func IdBetween(id Hash, n *Node) bool {
 	}
 }
 
-func (n *Node) GetOtherPodIP() IPAddress {
+// func (n *Node) GetOtherPodIP() IPAddress {
+// 	// Set up a grpc connection to another pod via cluster IP (which pod is dependent on how k8s load balances, since using cluster IP, can be itself)
+// 	conn, err := grpc.NewClient(
+// 		fmt.Sprintf("%s:%d", CHORD_URL_SHORTENING_SERVICE_HOST, CHORD_URL_SHORTENING_SERVICE_PORT_GRPC),
+// 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+// 	)
 
-	// Set up a grpc connection to another pod via cluster IP (which pod is dependent on how k8s load balances, since using cluster IP, can be itself)
-	conn, err := grpc.NewClient(
-		fmt.Sprintf("%s:%d", CHORD_URL_SHORTENING_SERVICE_HOST, CHORD_URL_SHORTENING_SERVICE_PORT_GRPC),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+// 	if err != nil {
+// 		log.Printf("Did not connect: %v", err)
+// 	}
+// 	defer conn.Close()
 
-	if err != nil {
-		log.Printf("Did not connect: %v", err)
-	}
-	defer conn.Close()
+// 	client := pb.NewNodeServiceClient(conn)
 
-	client := pb.NewNodeServiceClient(conn)
+// 	// Perform gRPC call to get the IP of another pod
+// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+// 	defer cancel()
 
-	// Perform gRPC call to get the IP of another pod
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+// 	req := &pb.GetIpRequest{NodeId: string(n.ipAddress)}
+// 	res, err := client.GetNodeIp(ctx, req)
+// 	if err != nil {
+// 		log.Printf("Could not get other pod's IP: %v", err)
+// 	}
 
-	req := &pb.GetIpRequest{NodeId: string(n.ipAddress)}
-	res, err := client.GetNodeIp(ctx, req)
-	if err != nil {
-		log.Printf("Could not get other pod's IP: %v", err)
-	}
-
-	return IPAddress(res.String())
-}
+// 	return IPAddress(res.String())
+// }
 
 func (n *Node) rpcCall(np IPAddress, funcName string) {
-	client, err := rpc.Dial("tcp", string(n.ipAddress))
+	client, err := rpc.Dial("tcp", string(n.IpAddress))
 	if err != nil {
 		log.Fatal("Dialing error:", err)
 	}
@@ -140,20 +133,20 @@ func (n *Node) rpcCall(np IPAddress, funcName string) {
 	}
 }
 
-func (n *Node) findSuccessor(id Hash) IPAddress {
-	if IdBetween(id, n) {
-		return n.succ
-	} else {
-		highestPredOfId := n.closestPrecedingNode(id)
+// func (n *Node) FindSuccessor(id Hash) IPAddress {
+// 	if IdBetween(id, n) {
+// 		return n.succ
+// 	} else {
+// 		highestPredOfId := n.ClosestPrecedingNode(id)
 
-		// grpc call here to the other node to find findSuccessor?
-		return highestPredOfId.findSuccessor(id)
-	}
-}
+// 		// grpc call here to the other node to find findSuccessor?
+// 		return highestPredOfId.FindSuccessor(id)
+// 	}
+// }
 
-func (n *Node) closestPrecedingNode(id Hash) IPAddress {
-	for i := len(n.fingerTable) - 1; i >= 0; i-- {
-		finger := n.fingerTable[i]
+func (n *Node) ClosestPrecedingNode(id Hash) IPAddress {
+	for i := len(n.FingerTable) - 1; i >= 0; i-- {
+		finger := n.FingerTable[i]
 		if finger != nil && n.id.Compare(finger.id) == -1 && finger.id.Compare(id) == -1 {
 			return finger
 		}
@@ -165,7 +158,7 @@ func (n *Node) closestPrecedingNode(id Hash) IPAddress {
 func (n *Node) CheckIfRingExists() IPAddress {
 	for i := 0; i < 5; i++ {
 		otherIP := n.GetOtherPodIP()
-		if otherIP != n.ipAddress {
+		if otherIP != n.IpAddress {
 			return otherIP
 		}
 	}
@@ -173,35 +166,33 @@ func (n *Node) CheckIfRingExists() IPAddress {
 }
 
 func (n *Node) JoinRingIfExistsElseCreateRing() {
-	existingRingNode := n.CheckIfRingExists()
-	if existingRingNode != n.ipAddress {
-		n.JoinRing(existingRingNode)
+	existingRingNodeIP := n.CheckIfRingExists()
+	if existingRingNodeIP != n.IpAddress {
+		n.JoinRing(existingRingNodeIP)
 	} else {
 		n.CreateRing()
 	}
 }
 
-func (n *Node) JoinRing(existingNodeIP IPAddress) {
-	var POD_IP string = utils.GetEnvString("POD_IP", "0.0.0.0")
-	return &pb.GetIpRequest{IpAddress: POD_IP}, nil
-
-	n.pred = ""
-	n.succ = existingNode.findSuccessor(n.id)
+func (n *Node) JoinRing(existingRingNodeIP IPAddress) {
+	n.Pred = ""
+	//
+	n.Succ = existingRingNodeIP.FindSuccessor(n.id)
 }
 
 func (n *Node) CreateRing() {
-	n.pred = ""
-	n.succ = n.ipAddress
+	n.Pred = ""
+	n.Succ = n.IpAddress
 	fmt.Print("Node %d created a new ring.\n", n.id)
 }
 
 func (n *Node) stabilize() {
-	succPred := n.succ.pred
+	succPred := n.Succ.pred
 }
 
 func (n *Node) Notify(nNode IPAddress) {
-	if n.pred == nil || (n.pred.id.Compare(nNode.id) == -1 && nNode.id.Compare(n.id) == -1) {
-		n.pred = nNode
+	if n.Pred == nil || (n.Pred.id.Compare(nNode.id) == -1 && nNode.id.Compare(n.id) == -1) {
+		n.Pred = nNode
 	}
 }
 
