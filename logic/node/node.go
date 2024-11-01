@@ -140,8 +140,13 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case JOIN:
 		fmt.Println("Received JOIN message")
 		reply.MsgType = ACK
+	case FIND_SUCCESSOR:
+		fmt.Println("Received FIND SUCCESSOR message")
+		successor := node.FindSuccessor(msg.Payload[0]) // first value should be the target IP Address
+		reply.Payload[0] = successor
 	}
-	return nil
+
+	return nil // nil means no error, else will return reply
 }
 
 func (n *Node) CreateNetwork() {
@@ -163,7 +168,7 @@ func (n *Node) JoinNetwork(joiningIP IPAddress) {
 	}
 
 	reply := n.CallRPC(joinMsg, string(joiningIP))
-	n.successor = joiningIP // itself
+	n.successor = joiningIP // TODO : this should call find_successor RPC
 
 	fmt.Println("Succesfully Joined Network", n, reply)
 }
@@ -195,7 +200,17 @@ func (n *Node) FindSuccessor(targetIPAddress IPAddress) IPAddress {
 	} else {
 		otherNodeIP := n.ClosestPrecedingNode(10, targetIPAddress)
 		// TODO: call FindSuccessor on otherNodeIP
-		fmt.Println(otherNodeIP)
+
+		findSuccMsg := RMsg{
+			MsgType:    FIND_SUCCESSOR,
+			OutgoingIP: n.ipAddress,
+			IncomingIP: otherNodeIP,
+			Payload:    []IPAddress{targetIPAddress},
+		}
+
+		reply := n.CallRPC(findSuccMsg, string(otherNodeIP))
+		fmt.Println(reply)
+		return reply.Payload[0]
 	}
 	return IPAddress("")
 }
