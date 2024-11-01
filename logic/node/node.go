@@ -2,11 +2,14 @@ package node
 
 import (
 	"crypto/sha256"
-	"encoding/binary"
+	// "encoding/binary"
 	"fmt"
+	// "math"
 	"net"
 	"net/rpc"
+	"strconv"
 	// "strings"
+	"math/big"
 )
 
 type Hash uint64 //[32]byte
@@ -21,12 +24,22 @@ type IPAddress string
 Function to generate the hash of the the input IP address
 */
 func (ip IPAddress) GenerateHash() Hash {
+	// M := 7.0
 	data := []byte(ip)
 	id := sha256.Sum256(data)
-	unmoddedID := float64(binary.BigEndian.Uint64(id[:8]))
-	// modValue := float64(math.Pow(2, M))
+	// fmt.Printf("%+v -- %+v\n", id[:8], id)
+	unmoddedID := new(big.Int).SetBytes(id[:8])//8
+	modValue := new(big.Int).SetInt64(128)
+
+	// a := big.NewFloat(float64(unmoddedID))
+	// b := big.NewFloat(float64(modValue))
+	// c := new(big.Int)
+	// c.Mod(a,b)
+	// fmt.Printf("%+v -- %+v -- %+v\n", a, b, c)
 	// moddedID := math.Mod(unmoddedID, modValue)
-	return Hash(unmoddedID)
+	moddedID := new(big.Int).Mod(unmoddedID, modValue)
+	// fmt.Printf("GENERATING HASH WITH IPADDRESS %+v: HASH -- %f -- %f -- %f -- %+v\n", ip,  unmoddedID, modValue, moddedID, Hash(moddedID.Int64()))
+	return Hash(moddedID.Int64())
 }
 
 type Node struct {
@@ -35,9 +48,28 @@ type Node struct {
 	fingerTable []IPAddress
 	successor   IPAddress
 	predecessor IPAddress
+	// fixFingerNext int
 }
 
-func InitNode(nodeAr []*Node) (Node, []*Node) {
+func (n *Node) GetIPAddress() IPAddress {
+	return n.ipAddress
+}
+func (n *Node) GetFingerTable() *[]IPAddress {
+	return &n.fingerTable
+}
+
+// func (n *Node) fixFingers() {
+// 	n.fixFingerNext++
+// 	if n.fixFingerNext > 
+// }
+var nodeCount int
+
+func InitNode(nodeAr *[]*Node) (Node, []*Node) {
+	nodeCount++
+	port := strconv.Itoa(nodeCount * 1111 + nodeCount-1)
+	helperIp := "0.0.0.0"
+	helperPort := "1111"
+	/*
 	var port string
 	var helperIp string
 	var helperPort string
@@ -56,6 +88,7 @@ func InitNode(nodeAr []*Node) (Node, []*Node) {
 	if err2 != nil {
 		fmt.Println("Error reading input", err2)
 	}
+	*/
 
 	var addr = "0.0.0.0" + ":" + port
 
@@ -92,15 +125,15 @@ func InitNode(nodeAr []*Node) (Node, []*Node) {
 		When a node first joins, it checks if it is the first node, then creates a new
 		chord network, or joins an existing chord network accordingly.
 	*/
-	if len(nodeAr) == 0 { // I am the only node in this network
-		nodeAr = append(nodeAr, &node)
+	if len(*nodeAr) == 0 { // I am the only node in this network
+		*nodeAr = append(*nodeAr, &node)
 		node.CreateNetwork()
 	} else {
-		nodeAr = append(nodeAr, &node)
+		*nodeAr = append(*nodeAr, &node)
 		node.JoinNetwork(IPAddress(helperIp + ":" + helperPort))
 	}
 
-	return node, nodeAr
+	return node, *nodeAr
 }
 
 func (n *Node) Run() {
