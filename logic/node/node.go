@@ -14,15 +14,15 @@ type Hash uint64 //[32]byte
 
 type IPAddress string
 
-type shortURL string
+type ShortURL string
 
-type longURL string
+type LongURL string
 
 /*
 Function to generate the hash of the the input IP address
 */
 func (ip IPAddress) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be the max num of machines our chord can take
-	EST_NO_OF_MACHINES := 11 // This is actually not m
+	EST_NO_OF_MACHINES := 10 // This is actually not m
 	MAX_RING_SIZE := int64(math.Pow(2, float64(EST_NO_OF_MACHINES)))
 
 	data := []byte(ip)
@@ -34,8 +34,8 @@ func (ip IPAddress) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be 
 }
 
 type Entry struct {
-	shortURL shortURL
-	longURL  longURL
+	shortURL ShortURL
+	longURL  LongURL
 }
 
 type Node struct {
@@ -88,10 +88,13 @@ func InitNode(nodeAr *[]*Node) (Node, []*Node) {
 		fmt.Println("Could not listen to TCP address", errin)
 	}
 
+	// Register new server (because we are running)
+	server := rpc.NewServer()
 	// Register RPC methods and accept incoming requests
-	rpc.Register(&node)
+	server.Register(&node)
 	fmt.Printf("Node is running at IP address: %s\n", tcpAddr.String())
-	go rpc.Accept(inbound)
+	fmt.Println("nodeIP", node.ipAddress)
+	go server.Accept(inbound)
 
 	// node at which the node is joining
 	// helperIp = helperIp[:len(helperIp)-1]
@@ -113,12 +116,25 @@ func InitNode(nodeAr *[]*Node) (Node, []*Node) {
 }
 
 func (n *Node) Run() {
-	for {
-		if n.ipAddress == "0.0.0.0:10007" {
-			// act as if it gets url
-			// put in url and retrieve it
+	// for {
+	if n.ipAddress == "0.0.0.0:10007" {
+		// act as if it gets url
+		// put in url and retrieve it
+		entries := []Entry{
+			{shortURL: "short1", longURL: "http://example.com/long1"},
+			{shortURL: "short2", longURL: "http://example.com/long2"},
+			{shortURL: "short3", longURL: "http://example.com/long3"},
+		}
+
+		for _, entry := range entries {
+			fmt.Println(entry.shortURL, "SHORT HASH", IPAddress(entry.shortURL).GenerateHash())
+			fmt.Println(entry.shortURL, n.ipAddress, "RUN NODE")
+			short := IPAddress(entry.shortURL)
+			successor := n.FindSuccessor(short)
+			fmt.Println(entry.shortURL, successor, "FOUND SUCCESSOR")
 		}
 	}
+	// }
 }
 
 /*
@@ -149,7 +165,7 @@ func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
 NODE Function to handle incoming RPC Calls and where to route them
 */
 func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
-	fmt.Println("msg", msg, "where")
+	fmt.Println("msg", msg, "node ip", node.ipAddress)
 	fmt.Println("Message of type", msg.MsgType, "received.")
 	switch msg.MsgType {
 	case JOIN:
@@ -157,9 +173,9 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		reply.MsgType = ACK
 	case FIND_SUCCESSOR:
 		fmt.Println("Received FIND SUCCESSOR message")
-		successor := node.FindSuccessor(msg.IncomingIP) // first value should be the target IP Address
-		reply.Payload = append(reply.Payload, successor)
-
+		fmt.Println(msg.Payload[0])
+		successor := node.FindSuccessor(msg.Payload[0]) // first value should be the target IP Address
+		reply.Payload = []IPAddress{successor}
 	}
 
 	return nil // nil means no error, else will return reply
@@ -180,6 +196,7 @@ func (n *Node) JoinNetwork(joiningIP IPAddress) {
 		MsgType:    FIND_SUCCESSOR,
 		OutgoingIP: n.ipAddress,
 		IncomingIP: joiningIP,
+		Payload:    []IPAddress{n.ipAddress},
 	}
 
 	reply := n.CallRPC(findSuccessorMsg, string(joiningIP))
@@ -212,29 +229,31 @@ func (id Hash) inBetween(start IPAddress, until IPAddress, includingUntil bool) 
 func (n *Node) FindSuccessor(targetIPAddress IPAddress) IPAddress {
 	if targetIPAddress.GenerateHash().inBetween(n.ipAddress, n.successor, true) {
 		return n.successor
-	} else {
-		otherNodeIP := n.ClosestPrecedingNode(10, targetIPAddress)
-
-		if otherNodeIP == n.ipAddress {
-			return n.successor
-		}
-
-		findSuccMsg := RMsg{
-			MsgType:    FIND_SUCCESSOR,
-			OutgoingIP: n.ipAddress,
-			IncomingIP: otherNodeIP,
-			Payload:    []IPAddress{targetIPAddress},
-		}
-
-		reply := n.CallRPC(findSuccMsg, string(otherNodeIP))
-		fmt.Println(reply)
-		return reply.Payload[0]
 	}
+
+	otherNodeIP := n.ClosestPrecedingNode(len(n.fingerTable), targetIPAddress)
+	fmt.Println(otherNodeIP, "alkfjlsakdflkasjdfkl")
+	if otherNodeIP == n.ipAddress {
+		fmt.Println("equivalent")
+		return n.successor
+	}
+
+	findSuccMsg := RMsg{
+		MsgType:    FIND_SUCCESSOR,
+		OutgoingIP: n.ipAddress,
+		IncomingIP: otherNodeIP,
+		Payload:    []IPAddress{targetIPAddress},
+	}
+
+	reply := n.CallRPC(findSuccMsg, string(otherNodeIP))
+	fmt.Println(reply)
+	return reply.Payload[0]
 }
 
 // This function isnt being called at the moment
+// TODO : not implemented correctly
 func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetIPAddress IPAddress) IPAddress {
-	for i := numberOfMachines; i > 0; i-- {
+	for i := numberOfMachines - 1; i >= 0; i-- {
 		if n.fingerTable[i].GenerateHash().inBetween(n.ipAddress, targetIPAddress, false) {
 			return n.fingerTable[i]
 		}

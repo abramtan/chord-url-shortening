@@ -13,6 +13,8 @@ func setFingersStatic(nodeAr *[]*node.Node) {
 		return (*nodeAr)[i].GetIPAddress().GenerateHash() < (*nodeAr)[j].GetIPAddress().GenerateHash()
 	})
 
+
+	// len(*nodeAr) needs to match the estimated size given in GenerateHash (since thats the size of the ring)
 	for i:=0;i<len(*nodeAr);i++ {
 		fmt.Printf("I: %d\n", i)
 		n := (*nodeAr)[i]
@@ -72,7 +74,7 @@ func main() {
 
 	for _, x := range nodeAr {
 		fmt.Printf("HI THERE %+v, %d\n", x, x.GetIPAddress().GenerateHash())
-		x.Run()
+		go x.Run()
 	}
-
+	time.Sleep(10 * time.Second)
 }
