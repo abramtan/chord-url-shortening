@@ -34,13 +34,22 @@ func setFingersStatic(nodeAr *[]*node.Node) {
 					(*(n.GetFingerTable())) = append((*(n.GetFingerTable())), (*nodeAr)[k].GetIPAddress())
 					break
 				}
-                
-                
 			}
             if !appended {
                 (*(n.GetFingerTable())) = append((*(n.GetFingerTable())), (*nodeAr)[0].GetIPAddress())
             }
 		}
+	}
+}
+
+// Hardcoding successors
+func setSuccessor(nodeAr *[]*node.Node) {
+	sort.Slice(*nodeAr, func(i, j int) bool {
+		return (*nodeAr)[i].GetIPAddress().GenerateHash() < (*nodeAr)[j].GetIPAddress().GenerateHash()
+	})
+	for i, x := range *nodeAr {
+		next := (i + 1) % 10
+		x.SetSuccessor((*nodeAr)[next].GetIPAddress())
 	}
 }
 
@@ -52,8 +61,6 @@ func main() {
 	var nodeAr []*node.Node
 	nodeAr = make([]*node.Node, 0)
 
-	_, nodeAr = node.InitNode(&nodeAr)
-
 	// Keep the parent thread alive
 	for i:=0;i<10;i++ {
 		time.Sleep(1000)
@@ -61,9 +68,11 @@ func main() {
 	}
 
 	setFingersStatic(&nodeAr)
+	setSuccessor(&nodeAr) 
 
 	for _, x := range nodeAr {
 		fmt.Printf("HI THERE %+v, %d\n", x, x.GetIPAddress().GenerateHash())
+		x.Run()
 	}
 
 }

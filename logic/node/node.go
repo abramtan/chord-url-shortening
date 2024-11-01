@@ -14,11 +14,15 @@ type Hash uint64 //[32]byte
 
 type IPAddress string
 
+type shortURL string
+
+type longURL string
+
 /*
 Function to generate the hash of the the input IP address
 */
 func (ip IPAddress) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be the max num of machines our chord can take
-	EST_NO_OF_MACHINES := 11
+	EST_NO_OF_MACHINES := 11 // This is actually not m
 	MAX_RING_SIZE := int64(math.Pow(2, float64(EST_NO_OF_MACHINES)))
 
 	data := []byte(ip)
@@ -29,6 +33,11 @@ func (ip IPAddress) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be 
 	return Hash(moddedID.Int64())
 }
 
+type Entry struct {
+	shortURL shortURL
+	longURL  longURL
+}
+
 type Node struct {
 	// id          uint64
 	ipAddress   IPAddress
@@ -36,8 +45,12 @@ type Node struct {
 	successor   IPAddress
 	predecessor IPAddress
 	// fixFingerNext int
+	storage map[Hash]Entry
 }
 
+func (n *Node) SetSuccessor(ipAddress IPAddress) {
+	n.successor = ipAddress
+}
 func (n *Node) GetIPAddress() IPAddress {
 	return n.ipAddress
 }
@@ -101,8 +114,10 @@ func InitNode(nodeAr *[]*Node) (Node, []*Node) {
 
 func (n *Node) Run() {
 	for {
-		// receive msg to search for shortID
-		break
+		if n.ipAddress == "0.0.0.0:10007" {
+			// act as if it gets url
+			// put in url and retrieve it
+		}
 	}
 }
 
@@ -142,8 +157,9 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		reply.MsgType = ACK
 	case FIND_SUCCESSOR:
 		fmt.Println("Received FIND SUCCESSOR message")
-		successor := node.FindSuccessor(msg.Payload[0]) // first value should be the target IP Address
-		reply.Payload[0] = successor
+		successor := node.FindSuccessor(msg.IncomingIP) // first value should be the target IP Address
+		reply.Payload = append(reply.Payload, successor)
+
 	}
 
 	return nil // nil means no error, else will return reply
@@ -156,19 +172,18 @@ func (n *Node) CreateNetwork() {
 	fmt.Println("Succesfully Created Network", n)
 }
 
-// TODO: Update to use "FIND_SUCCESSOR"
 func (n *Node) JoinNetwork(joiningIP IPAddress) {
 	// following pseudo code
 	n.predecessor = IPAddress("")
 
-	joinMsg := RMsg{
-		MsgType:    JOIN,
+	findSuccessorMsg := RMsg{
+		MsgType:    FIND_SUCCESSOR,
 		OutgoingIP: n.ipAddress,
 		IncomingIP: joiningIP,
 	}
 
-	reply := n.CallRPC(joinMsg, string(joiningIP))
-	n.successor = joiningIP // TODO : this should call find_successor RPC
+	reply := n.CallRPC(findSuccessorMsg, string(joiningIP))
+	n.successor = reply.Payload[0]
 
 	fmt.Println("Succesfully Joined Network", n, reply)
 }
@@ -199,7 +214,10 @@ func (n *Node) FindSuccessor(targetIPAddress IPAddress) IPAddress {
 		return n.successor
 	} else {
 		otherNodeIP := n.ClosestPrecedingNode(10, targetIPAddress)
-		// TODO: call FindSuccessor on otherNodeIP
+
+		if otherNodeIP == n.ipAddress {
+			return n.successor
+		}
 
 		findSuccMsg := RMsg{
 			MsgType:    FIND_SUCCESSOR,
@@ -212,9 +230,9 @@ func (n *Node) FindSuccessor(targetIPAddress IPAddress) IPAddress {
 		fmt.Println(reply)
 		return reply.Payload[0]
 	}
-	return IPAddress("")
 }
 
+// This function isnt being called at the moment
 func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetIPAddress IPAddress) IPAddress {
 	for i := numberOfMachines; i > 0; i-- {
 		if n.fingerTable[i].GenerateHash().inBetween(n.ipAddress, targetIPAddress, false) {

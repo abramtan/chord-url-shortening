@@ -15,8 +15,8 @@ const (
 
 type RMsg struct {
 	MsgType       string
-	IncomingIP    IPAddress
-	OutgoingIP    IPAddress
+	OutgoingIP    IPAddress // Sender IP
+	IncomingIP    IPAddress // Receiver IP
 	QueryResponse []string
 	Payload       []IPAddress
 }
