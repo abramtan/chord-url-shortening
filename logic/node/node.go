@@ -2,12 +2,14 @@ package node
 
 import (
 	"crypto/sha256"
+	"math"
 	// "encoding/binary"
 	"fmt"
 	// "math"
 	"net"
 	"net/rpc"
 	"strconv"
+
 	// "strings"
 	"math/big"
 )
@@ -23,22 +25,12 @@ type IPAddress string
 /*
 Function to generate the hash of the the input IP address
 */
-func (ip IPAddress) GenerateHash() Hash {
-	// M := 7.0
+func (ip IPAddress) GenerateHash(numberOfMachines int) Hash { // TODO: make not depend on numberOfMachines!
 	data := []byte(ip)
 	id := sha256.Sum256(data)
-	// fmt.Printf("%+v -- %+v\n", id[:8], id)
-	unmoddedID := new(big.Int).SetBytes(id[:8])//8
-	modValue := new(big.Int).SetInt64(128)
-
-	// a := big.NewFloat(float64(unmoddedID))
-	// b := big.NewFloat(float64(modValue))
-	// c := new(big.Int)
-	// c.Mod(a,b)
-	// fmt.Printf("%+v -- %+v -- %+v\n", a, b, c)
-	// moddedID := math.Mod(unmoddedID, modValue)
+	unmoddedID := new(big.Int).SetBytes(id[:8])
+	modValue := new(big.Int).SetInt64(int64(math.Pow(2,float64(numberOfMachines)))) 
 	moddedID := new(big.Int).Mod(unmoddedID, modValue)
-	// fmt.Printf("GENERATING HASH WITH IPADDRESS %+v: HASH -- %f -- %f -- %f -- %+v\n", ip,  unmoddedID, modValue, moddedID, Hash(moddedID.Int64()))
 	return Hash(moddedID.Int64())
 }
 
