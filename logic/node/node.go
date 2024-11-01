@@ -2,34 +2,24 @@ package node
 
 import (
 	"crypto/sha256"
-	"math"
-	// "encoding/binary"
 	"fmt"
-	// "math"
+	"math"
+	"math/big"
 	"net"
 	"net/rpc"
 	"strconv"
-
-	// "strings"
-	"math/big"
 )
 
 type Hash uint64 //[32]byte
 
 type IPAddress string
 
-// func (ip IPAddress) getID() Hash {
-// 	return sha256.Sum256([]byte(ip))
-// }
-
-
-
 /*
 Function to generate the hash of the the input IP address
 */
-func (ip IPAddress) GenerateHash() Hash { // TODO: make not depend on numberOfMachines!
-    EST_NO_OF_MACHINES := 11
-    MAX_RING_SIZE := int64(math.Pow(2,float64(EST_NO_OF_MACHINES)))
+func (ip IPAddress) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be the max num of machines our chord can take
+	EST_NO_OF_MACHINES := 11
+	MAX_RING_SIZE := int64(math.Pow(2, float64(EST_NO_OF_MACHINES)))
 
 	data := []byte(ip)
 	id := sha256.Sum256(data)
@@ -55,37 +45,13 @@ func (n *Node) GetFingerTable() *[]IPAddress {
 	return &n.fingerTable
 }
 
-// func (n *Node) fixFingers() {
-// 	n.fixFingerNext++
-// 	if n.fixFingerNext > 
-// }
 var nodeCount int
 
 func InitNode(nodeAr *[]*Node) (Node, []*Node) {
 	nodeCount++
-	port := strconv.Itoa(nodeCount * 1111 + nodeCount-1)
+	port := strconv.Itoa(nodeCount*1111 + nodeCount - 1)
 	helperIp := "0.0.0.0"
 	helperPort := "1111"
-	/*
-	var port string
-	var helperIp string
-	var helperPort string
-
-	// Read your own port number and also the IP address of the other node, if new network
-	// myIpAddress := utility.GetOutboundIP().String()
-	// read input from user
-	fmt.Println("Enter your port number:")
-	_, err1 := fmt.Scan(&port)
-	if err1 != nil {
-		fmt.Println("Error reading input", err1)
-	}
-	fmt.Println("Enter IP address and port used to join network:")
-	// read input from user
-	_, err2 := fmt.Scan(&helperIp, &helperPort)
-	if err2 != nil {
-		fmt.Println("Error reading input", err2)
-	}
-	*/
 
 	var addr = "0.0.0.0" + ":" + port
 
@@ -140,6 +106,44 @@ func (n *Node) Run() {
 	}
 }
 
+/*
+Node utility function to call RPC given a request message, and a destination IP address.
+*/
+func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
+	fmt.Printf("Nodeid: %v IP: %s is sending message %v to IP: %s\n", msg.OutgoingIP, msg.IncomingIP, msg.MsgType, IP)
+	clnt, err := rpc.Dial("tcp", IP)
+	reply := RMsg{}
+	if err != nil {
+		// fmt.Printf(msg.msgType)
+		fmt.Printf("Nodeid: %v IP: %s received reply %v from IP: %s\n", msg.OutgoingIP, msg.IncomingIP, msg.MsgType, IP)
+		reply.MsgType = EMPTY
+		return reply
+	}
+	err = clnt.Call("Node.HandleIncomingMessage", &msg, &reply)
+	if err != nil {
+		fmt.Printf("Error calling RPC\n")
+		fmt.Printf("Nodeid: %d IP: %s received reply %v from IP: %s\n", msg.OutgoingIP, msg.IncomingIP, msg.MsgType, IP)
+		reply.MsgType = EMPTY
+		return reply
+	}
+	fmt.Printf("Received reply from %s\n", IP)
+	return reply
+}
+
+/*
+NODE Function to handle incoming RPC Calls and where to route them
+*/
+func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
+	fmt.Println("msg", msg, "where")
+	fmt.Println("Message of type", msg.MsgType, "received.")
+	switch msg.MsgType {
+	case JOIN:
+		fmt.Println("Received JOIN message")
+		reply.MsgType = ACK
+	}
+	return nil
+}
+
 func (n *Node) CreateNetwork() {
 	// following pseudo code
 	n.predecessor = IPAddress("")
@@ -147,6 +151,7 @@ func (n *Node) CreateNetwork() {
 	fmt.Println("Succesfully Created Network", n)
 }
 
+// TODO: Update to use "FIND_SUCCESSOR"
 func (n *Node) JoinNetwork(joiningIP IPAddress) {
 	// following pseudo code
 	n.predecessor = IPAddress("")
@@ -189,7 +194,7 @@ func (n *Node) FindSuccessor(targetIPAddress IPAddress) IPAddress {
 		return n.successor
 	} else {
 		otherNodeIP := n.ClosestPrecedingNode(10, targetIPAddress)
-		// call FindSuccessor on otherNodeIP
+		// TODO: call FindSuccessor on otherNodeIP
 		fmt.Println(otherNodeIP)
 	}
 	return IPAddress("")
@@ -202,39 +207,4 @@ func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetIPAddress IPAddr
 		}
 	}
 	return n.ipAddress
-}
-
-/*
-Node utility function to call RPC given a request message, and a destination IP address.
-*/
-func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
-	fmt.Printf("Nodeid: %v IP: %s is sending message %v to IP: %s\n", msg.OutgoingIP, msg.IncomingIP, msg.MsgType, IP)
-	clnt, err := rpc.Dial("tcp", IP)
-	reply := RMsg{}
-	if err != nil {
-		// fmt.Printf(msg.msgType)
-		fmt.Printf("Nodeid: %v IP: %s received reply %v from IP: %s\n", msg.OutgoingIP, msg.IncomingIP, msg.MsgType, IP)
-		reply.MsgType = EMPTY
-		return reply
-	}
-	err = clnt.Call("Node.HandleIncomingMessage", &msg, &reply)
-	if err != nil {
-		fmt.Printf("Error calling RPC\n")
-		fmt.Printf("Nodeid: %d IP: %s received reply %v from IP: %s\n", msg.OutgoingIP, msg.IncomingIP, msg.MsgType, IP)
-		reply.MsgType = EMPTY
-		return reply
-	}
-	fmt.Printf("Received reply from %s\n", IP)
-	return reply
-}
-
-func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
-	fmt.Println("msg", msg, "where")
-	fmt.Println("Message of type", msg.MsgType, "received.")
-	switch msg.MsgType {
-	case JOIN:
-		fmt.Println("Received JOIN message")
-		reply.MsgType = ACK
-	}
-	return nil
 }
