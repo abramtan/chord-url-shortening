@@ -55,7 +55,7 @@ func main() {
 	_, nodeAr = node.InitNode(&nodeAr)
 
 	// Keep the parent thread alive
-	for i:=0;i<6;i++ {
+	for i:=0;i<10;i++ {
 		time.Sleep(1000)
 		node.InitNode(&nodeAr)
 	}

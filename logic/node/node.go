@@ -22,14 +22,19 @@ type IPAddress string
 // 	return sha256.Sum256([]byte(ip))
 // }
 
+
+
 /*
 Function to generate the hash of the the input IP address
 */
-func (ip IPAddress) GenerateHash(numberOfMachines int) Hash { // TODO: make not depend on numberOfMachines!
+func (ip IPAddress) GenerateHash() Hash { // TODO: make not depend on numberOfMachines!
+    EST_NO_OF_MACHINES := 11
+    MAX_RING_SIZE := int64(math.Pow(2,float64(EST_NO_OF_MACHINES)))
+
 	data := []byte(ip)
 	id := sha256.Sum256(data)
 	unmoddedID := new(big.Int).SetBytes(id[:8])
-	modValue := new(big.Int).SetInt64(int64(math.Pow(2,float64(numberOfMachines)))) 
+	modValue := new(big.Int).SetInt64(MAX_RING_SIZE)
 	moddedID := new(big.Int).Mod(unmoddedID, modValue)
 	return Hash(moddedID.Int64())
 }
