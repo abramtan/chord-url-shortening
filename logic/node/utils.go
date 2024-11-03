@@ -11,6 +11,8 @@ const (
 	NOTIFY                 = "notify"                 // Used to notify a node about a new predecessor.
 	EMPTY                  = "empty"                  // Placeholder or undefined message type or errenous communications.
 	JOIN                   = "join"                   // testing the join function
+	STORE_URL              = "store_url"              // Used to store a url in the node.
+	RETRIEVE_URL           = "retrieve_url"           // Used to retrieve a url from the node. 
 )
 
 type RMsg struct {

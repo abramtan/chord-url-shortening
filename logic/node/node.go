@@ -45,7 +45,7 @@ type Node struct {
 	successor   IPAddress
 	predecessor IPAddress
 	// fixFingerNext int
-	storage map[Hash]Entry
+	urlMap map[ShortURL]LongURL
 }
 
 func (n *Node) SetSuccessor(ipAddress IPAddress) {
@@ -73,6 +73,7 @@ func InitNode(nodeAr *[]*Node) (Node, []*Node) {
 		// id:          IPAddress(addr).GenerateHash(M),
 		ipAddress:   IPAddress(addr),
 		fingerTable: make([]IPAddress, 0),
+		urlMap:      make(map[ShortURL]LongURL),
 	}
 
 	fmt.Println("My IP Address is", string(node.ipAddress))
@@ -176,8 +177,18 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		fmt.Println(msg.Payload[0])
 		successor := node.FindSuccessor(msg.Payload[0]) // first value should be the target IP Address
 		reply.Payload = []IPAddress{successor}
+	case STORE_URL:
+		shortURL := ShortURL(msg.Payload[0])
+		longURL := LongURL(msg.Payload[1])
+		node.urlMap[shortURL] = longURL
+		reply.MsgType = ACK
+	case RETRIEVE_URL:
+		shortURL := ShortURL(msg.Payload[0])
+		if longURL, found := node.urlMap[shortURL]; found {
+			reply.QueryResponse = []string{string(longURL)}
+		}
+		reply.MsgType = ACK
 	}
-
 	return nil // nil means no error, else will return reply
 }
 
@@ -259,4 +270,52 @@ func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetIPAddress IPAddr
 		}
 	}
 	return n.ipAddress
+}
+
+func (n *Node) GenerateShortURL(longURL LongURL) ShortURL {
+	hash := sha256.Sum256([]byte(longURL))
+	// 6-byte short URL for simplicity
+	// TODO: short url cannot just be hashed but should be a shorter url?
+	short := fmt.Sprintf("%x", hash[:6]) 
+	return ShortURL(short)
+}
+
+func (n *Node) StoreURL(shortURL ShortURL, longURL LongURL) {
+	targetNodeIP := n.FindSuccessor(IPAddress(shortURL))
+	if targetNodeIP == n.ipAddress {
+		n.urlMap[shortURL] = longURL
+		fmt.Printf("Stored URL: %s -> %s on Node %s\n", shortURL, longURL, n.ipAddress)
+	} else {
+		storeMsg := RMsg{
+			MsgType:    STORE_URL,
+			OutgoingIP: n.ipAddress,
+			IncomingIP: targetNodeIP,
+			Payload:    []IPAddress{IPAddress(shortURL), IPAddress(longURL)},
+		}
+		fmt.Printf("Sending STORE_URL message to Node %s\n", targetNodeIP)
+		n.CallRPC(storeMsg, string(targetNodeIP))
+	}
+}
+
+func (n *Node) RetrieveURL(shortURL ShortURL) (LongURL, bool) {
+	targetNodeIP := n.FindSuccessor(IPAddress(shortURL))
+	if targetNodeIP == n.ipAddress {
+		longURL, found := n.urlMap[shortURL]
+		if found {
+			fmt.Printf("Retrieved URL: %s -> %s from Node %s\n", shortURL, longURL, n.ipAddress)
+		}
+		return longURL, found
+	} else {
+		retrieveMsg := RMsg{
+			MsgType:    RETRIEVE_URL,
+			OutgoingIP: n.ipAddress,
+			IncomingIP: targetNodeIP,
+			Payload:    []IPAddress{IPAddress(shortURL)},
+		}
+		reply := n.CallRPC(retrieveMsg, string(targetNodeIP))
+		if len(reply.QueryResponse) > 0 {
+			return LongURL(reply.QueryResponse[0]), true
+		}
+		return "", false
+	}
 }

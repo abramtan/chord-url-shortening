@@ -23,6 +23,7 @@ src/frontend/node_modules
 src/frontend/.pnp
 .pnp.js
 .yarn/install-state.gz
+.vscode/launch.json
 
 # next.js
 src/frontend/.next/
