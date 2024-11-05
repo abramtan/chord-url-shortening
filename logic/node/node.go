@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+
 	// "math/rand/v2"
 	"net"
 	"net/rpc"
@@ -28,11 +29,22 @@ const (
 	// REPLICATION_FACTOR = 2
 )
 
+func nilHashableString() HashableString {
+	return HashableString("NIL")
+}
+
+func (ip HashableString) isNil() bool {
+	return ip == nilHashableString()
+}
+
 /*
 Function to generate the hash of the the input IP address
 */
 func (ip HashableString) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be the max num of machines our chord can take
 	// EST_NO_OF_MACHINES := 10 // This is actually not m
+	if ip.isNil() {
+		panic("Tried to call GenerateHash() on nil HashableString")
+	}
 
 	MAX_RING_SIZE := int64(math.Pow(2, float64(M)))
 
@@ -55,7 +67,7 @@ type Node struct {
 	ipAddress     HashableString
 	fingerTable   []HashableString
 	successor     HashableString
-	predecessor   HashableString
+	Predecessor   HashableString
 	urlMap        map[ShortURL]LongURL
 	mu            sync.Mutex
 }
@@ -86,7 +98,7 @@ func InitNode(nodeAr *[]*Node) *Node {
 	node := Node{
 		// id:          IPAddress(addr).GenerateHash(M),
 		ipAddress:   HashableString(addr),
-		fingerTable: make([]HashableString, M), // this is the length of the finger table 2**M 
+		fingerTable: make([]HashableString, M), // this is the length of the finger table 2**M
 		urlMap:      make(map[ShortURL]LongURL),
 	}
 
@@ -119,36 +131,40 @@ func InitNode(nodeAr *[]*Node) *Node {
 		node.JoinNetwork(HashableString(helperIp + ":" + helperPort))
 	}
 
-	go node.Maintain()
+	// go node.Maintain()
 
 	return &node
 }
 
 func (n *Node) stabilise() {
 
-    getPredecessorMsg := RMsg{
+	getPredecessorMsg := RMsg{
 		MsgType:    GET_PREDECESSOR,
 		SenderIP:   n.ipAddress,
 		RecieverIP: n.successor,
 	}
 
 	reply := n.CallRPC(getPredecessorMsg, string(n.successor))
-    succPred := reply.TargetIP[0] // x == my successor's predecessor
-	if succPred != HashableString("") {
+	succPred := reply.TargetIP[0] // x == my successor's predecessor
+	if succPred.isNil() {
+		fmt.Println("IS NIL?", succPred)
+	} else {
 		// n.successor.notify
+		fmt.Println("IS NOT NIL?", succPred)
 		if succPred.GenerateHash().inBetween(n.ipAddress.GenerateHash(), n.successor.GenerateHash(), false) {
-        	n.successor = succPred
-        }
+			fmt.Println("SETTING SUCCESSOR", n.ipAddress, n.successor, succPred)
+			n.successor = succPred
+		}
 	}
 
 	// send a notify message to the successor to tell it to run the notify() function
-    notifyMsg := RMsg{
+	notifyMsg := RMsg{
 		MsgType:    NOTIFY,
 		SenderIP:   n.ipAddress,
 		RecieverIP: n.successor,
 	}
 	// we don't use the reply
-    reply2 := n.CallRPC(notifyMsg, string(n.successor))
+	reply2 := n.CallRPC(notifyMsg, string(n.successor))
 	if reply2.MsgType == ACK {
 		fmt.Println("Recv ACK for Notify Msg from", n.ipAddress)
 	}
@@ -168,10 +184,10 @@ func (n *Node) fixFingers() {
 
 func (n *Node) Maintain() {
 	for {
-		go n.fixFingers()
-		go n.stabilise()
+		n.fixFingers()
+		n.stabilise()
 		// time.Sleep(time.Duration(rand.IntN(10000))*time.Millisecond)
-		time.Sleep(1*time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 
 	}
 }
@@ -214,7 +230,7 @@ func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
 	err = clnt.Call("Node.HandleIncomingMessage", &msg, &reply)
 	if err != nil {
 		fmt.Println("Error calling RPC", err)
-		fmt.Printf("Nodeid: %d IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
+		fmt.Printf("Nodeid: %s IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
 		reply.MsgType = EMPTY
 		return reply
 	}
@@ -253,20 +269,20 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 			reply.QueryResponse = []string{string(LongURL)}
 		}
 		reply.MsgType = ACK
-    case GET_PREDECESSOR:
-        fmt.Println("Received GET PRED message")
-        reply.TargetIP = []HashableString{node.predecessor}
-    case NOTIFY:
-        fmt.Println("Received NOTIFY message")
-        nPrime := msg.SenderIP
-        if node.predecessor == HashableString("") ||
-           nPrime.GenerateHash().inBetween(
-            node.predecessor.GenerateHash(),
-            node.ipAddress.GenerateHash(),
-            false,
-        ) {
-            node.predecessor = nPrime
-        }
+	case GET_PREDECESSOR:
+		fmt.Println("Received GET PRED message")
+		reply.TargetIP = []HashableString{node.Predecessor}
+	case NOTIFY:
+		fmt.Println("Received NOTIFY message")
+		nPrime := msg.SenderIP
+		if node.Predecessor.isNil() ||
+			nPrime.GenerateHash().inBetween(
+				node.Predecessor.GenerateHash(),
+				node.ipAddress.GenerateHash(),
+				false,
+			) {
+			node.Predecessor = nPrime
+		}
 		reply.MsgType = ACK
 	}
 	return nil // nil means no error, else will return reply
@@ -274,14 +290,14 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 
 func (n *Node) CreateNetwork() {
 	// following pseudo code
-	n.predecessor = HashableString("")
+	n.Predecessor = nilHashableString()
 	n.successor = n.ipAddress // itself
 	fmt.Println("Succesfully Created Network", n)
 }
 
 func (n *Node) JoinNetwork(joiningIP HashableString) {
 	// following pseudo code
-	n.predecessor = HashableString("")
+	n.Predecessor = nilHashableString()
 
 	findSuccessorMsg := RMsg{
 		MsgType:    FIND_SUCCESSOR,
@@ -298,6 +314,8 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 
 func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
 	if start == until {
+		// TODO : if somehow the node is hitting this cause passing start == until
+		// and not the only node in the rinG
 		return true
 	} else if start < until {
 		if includingUntil {
@@ -306,6 +324,7 @@ func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
 			return start < id && id < until
 		}
 	} else {
+		// TODO : some issue with this, maybe the OR function
 		if includingUntil {
 			return until <= id || id < start
 		} else {
@@ -337,9 +356,9 @@ func (n *Node) FindSuccessor(targetID Hash) HashableString {
 	}
 
 	reply := n.CallRPC(findSuccMsg, string(otherNodeIP))
-    if len(reply.TargetIP) == 0 {
-        panic(fmt.Sprintf("%+v\n", reply))
-    }
+	if len(reply.TargetIP) == 0 {
+		panic(fmt.Sprintf("%+v\n", reply))
+	}
 	return reply.TargetIP[0]
 }
 
@@ -351,7 +370,6 @@ func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetID Hash) Hashabl
 				return n.fingerTable[i]
 			}
 		}
-		
 	}
 	return n.ipAddress
 }

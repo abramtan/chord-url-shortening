@@ -80,20 +80,20 @@ func main() {
 	// 	go x.Run()
 	// }
 
-	fmt.Print("testing for short and long url storing and generation")
+	// fmt.Print("testing for short and long url storing and generation")
 
-	// testing URL Shortening and Retrieval
-	longURL := node.LongURL("http://example.com/long4-trial")
-	shortNode := nodeAr[0] // THIS IS NOT AVAILABLE
-	shortURL := shortNode.GenerateShortURL(longURL)
+	// // testing URL Shortening and Retrieval
+	// longURL := node.LongURL("http://example.com/long4-trial")
+	// shortNode := nodeAr[0] // THIS IS NOT AVAILABLE
+	// shortURL := shortNode.GenerateShortURL(longURL)
 
-	shortNode.StoreURL(shortURL, longURL)
-	retrievedURL, found := shortNode.RetrieveURL(shortURL)
+	// shortNode.StoreURL(shortURL, longURL)
+	// retrievedURL, found := shortNode.RetrieveURL(shortURL)
 
-	if found {
-		fmt.Printf("URL Retrieved: %s -> %s\n", shortURL, retrievedURL)
-	} else {
-		fmt.Println("URL not found")
-	}
-	time.Sleep(10 * time.Second)
+	// if found {
+	// 	fmt.Printf("URL Retrieved: %s -> %s\n", shortURL, retrievedURL)
+	// } else {
+	// 	fmt.Println("URL not found")
+	// }
+	// time.Sleep(10 * time.Second)
 }
