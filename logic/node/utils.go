@@ -17,10 +17,10 @@ const (
 
 type RMsg struct {
 	MsgType       string
-	SenderIP      IPAddress   // Sender IP
-	RecieverIP    IPAddress   // Receiver IP
-	QueryResponse []string    // ?
-	TargetHash    []Hash      // Hash Value of the value to be found (shortURL or IP Address )
-	TargetIP      []IPAddress // IP of the Found Node
-	StoreEntry    []Entry     // for {shortUrl, longUrl}
+	SenderIP      HashableString   // Sender IP
+	RecieverIP    HashableString   // Receiver IP
+	QueryResponse []string         // ?
+	TargetHash    []Hash           // Hash Value of the value to be found (shortURL or IP Address )
+	TargetIP      []HashableString // IP of the Found Node
+	StoreEntry    []Entry          // for {shortUrl, longUrl}
 }

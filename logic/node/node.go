@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	// "math/rand/v2"
 	"net"
 	"net/rpc"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type Hash uint64 //[32]byte
 
-type IPAddress string
+type HashableString string
 
 type ShortURL string
 
@@ -29,7 +31,7 @@ const (
 /*
 Function to generate the hash of the the input IP address
 */
-func (ip IPAddress) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be the max num of machines our chord can take
+func (ip HashableString) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be the max num of machines our chord can take
 	// EST_NO_OF_MACHINES := 10 // This is actually not m
 
 	MAX_RING_SIZE := int64(math.Pow(2, float64(M)))
@@ -43,28 +45,28 @@ func (ip IPAddress) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be 
 }
 
 type Entry struct {
-	shortURL ShortURL
-	longURL  LongURL
+	ShortURL ShortURL
+	LongURL  LongURL
 }
 
 type Node struct {
 	// id          uint64
 	fixFingerNext int
-	ipAddress     IPAddress
-	fingerTable   []IPAddress
-	successor     IPAddress
-	predecessor   IPAddress
+	ipAddress     HashableString
+	fingerTable   []HashableString
+	successor     HashableString
+	predecessor   HashableString
 	urlMap        map[ShortURL]LongURL
 	mu            sync.Mutex
 }
 
-func (n *Node) SetSuccessor(ipAddress IPAddress) {
+func (n *Node) SetSuccessor(ipAddress HashableString) {
 	n.successor = ipAddress
 }
-func (n *Node) GetIPAddress() IPAddress {
+func (n *Node) GetIPAddress() HashableString {
 	return n.ipAddress
 }
-func (n *Node) GetFingerTable() *[]IPAddress {
+func (n *Node) GetFingerTable() *[]HashableString {
 	return &n.fingerTable
 }
 
@@ -83,8 +85,8 @@ func InitNode(nodeAr *[]*Node) *Node {
 	// Create new Node object for yourself
 	node := Node{
 		// id:          IPAddress(addr).GenerateHash(M),
-		ipAddress:   IPAddress(addr),
-		fingerTable: make([]IPAddress, 0),
+		ipAddress:   HashableString(addr),
+		fingerTable: make([]HashableString, M), // this is the length of the finger table 2**M 
 		urlMap:      make(map[ShortURL]LongURL),
 	}
 
@@ -110,16 +112,46 @@ func InitNode(nodeAr *[]*Node) *Node {
 
 	/* Joining at the port 0.0.0.0:1111 */
 	if helperPort == port { // I am the joining node
-		// *nodeAr = append(*nodeAr, &node)
+		*nodeAr = append(*nodeAr, &node)
 		node.CreateNetwork()
 	} else {
-		// *nodeAr = append(*nodeAr, &node)
-		node.JoinNetwork(IPAddress(helperIp + ":" + helperPort))
+		*nodeAr = append(*nodeAr, &node)
+		node.JoinNetwork(HashableString(helperIp + ":" + helperPort))
 	}
 
 	go node.Maintain()
 
 	return &node
+}
+
+func (n *Node) stabilise() {
+
+    getPredecessorMsg := RMsg{
+		MsgType:    GET_PREDECESSOR,
+		SenderIP:   n.ipAddress,
+		RecieverIP: n.successor,
+	}
+
+	reply := n.CallRPC(getPredecessorMsg, string(n.successor))
+    succPred := reply.TargetIP[0] // x == my successor's predecessor
+	if succPred != HashableString("") {
+		// n.successor.notify
+		if succPred.GenerateHash().inBetween(n.ipAddress.GenerateHash(), n.successor.GenerateHash(), false) {
+        	n.successor = succPred
+        }
+	}
+
+	// send a notify message to the successor to tell it to run the notify() function
+    notifyMsg := RMsg{
+		MsgType:    NOTIFY,
+		SenderIP:   n.ipAddress,
+		RecieverIP: n.successor,
+	}
+	// we don't use the reply
+    reply2 := n.CallRPC(notifyMsg, string(n.successor))
+	if reply2.MsgType == ACK {
+		fmt.Println("Recv ACK for Notify Msg from", n.ipAddress)
+	}
 }
 
 func (n *Node) fixFingers() {
@@ -136,6 +168,10 @@ func (n *Node) fixFingers() {
 
 func (n *Node) Maintain() {
 	for {
+		go n.fixFingers()
+		go n.stabilise()
+		// time.Sleep(time.Duration(rand.IntN(10000))*time.Millisecond)
+		time.Sleep(1*time.Millisecond)
 
 	}
 }
@@ -146,17 +182,17 @@ func (n *Node) Run() {
 		// act as if it gets url
 		// put in url and retrieve it
 		entries := []Entry{
-			{shortURL: "short1", longURL: "http://example.com/long1"},
-			{shortURL: "short2", longURL: "http://example.com/long2"},
-			{shortURL: "short3", longURL: "http://example.com/long3"},
+			{ShortURL: "short1", LongURL: "http://example.com/long1"},
+			{ShortURL: "short2", LongURL: "http://example.com/long2"},
+			{ShortURL: "short3", LongURL: "http://example.com/long3"},
 		}
 
 		for _, entry := range entries {
-			fmt.Println(entry.shortURL, "SHORT HASH", IPAddress(entry.shortURL).GenerateHash())
-			fmt.Println(entry.shortURL, n.ipAddress, "RUN NODE")
-			short := IPAddress(entry.shortURL)
+			fmt.Println(entry.ShortURL, "SHORT HASH", HashableString(entry.ShortURL).GenerateHash())
+			fmt.Println(entry.ShortURL, n.ipAddress, "RUN NODE")
+			short := HashableString(entry.ShortURL)
 			successor := n.FindSuccessor(short.GenerateHash())
-			fmt.Println(entry.shortURL, successor, "FOUND SUCCESSOR")
+			fmt.Println(entry.ShortURL, successor, "FOUND SUCCESSOR")
 		}
 	}
 	// }
@@ -177,7 +213,7 @@ func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
 	}
 	err = clnt.Call("Node.HandleIncomingMessage", &msg, &reply)
 	if err != nil {
-		fmt.Printf("Error calling RPC\n")
+		fmt.Println("Error calling RPC", err)
 		fmt.Printf("Nodeid: %d IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
 		reply.MsgType = EMPTY
 		return reply
@@ -198,24 +234,39 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		reply.MsgType = ACK
 	case FIND_SUCCESSOR:
 		fmt.Println("Received FIND SUCCESSOR message")
-		fmt.Println(msg.TargetIP[0])
-		successor := node.FindSuccessor(msg.TargetIP[0].GenerateHash()) // first value should be the target IP Address
-		reply.TargetIP = []IPAddress{successor}
+		fmt.Println(msg.TargetHash[0])
+		successor := node.FindSuccessor(msg.TargetHash[0]) // first value should be the target IP Address
+		reply.TargetIP = []HashableString{successor}
 	case STORE_URL:
 		fmt.Println("Received STORE_URL message")
 		entry := msg.StoreEntry[0]
-		shortURL := entry.shortURL
-		longURL := entry.longURL
+		ShortURL := entry.ShortURL
+		LongURL := entry.LongURL
 		defer node.mu.Unlock()
 		node.mu.Lock()
-		node.urlMap[shortURL] = longURL
+		node.urlMap[ShortURL] = LongURL
 		reply.MsgType = ACK
 	case RETRIEVE_URL:
 		fmt.Println("Received RETRIEVE_URL message")
-		shortURL := ShortURL(msg.TargetIP[0])
-		if longURL, found := node.urlMap[shortURL]; found {
-			reply.QueryResponse = []string{string(longURL)}
+		ShortURL := ShortURL(msg.TargetIP[0])
+		if LongURL, found := node.urlMap[ShortURL]; found {
+			reply.QueryResponse = []string{string(LongURL)}
 		}
+		reply.MsgType = ACK
+    case GET_PREDECESSOR:
+        fmt.Println("Received GET PRED message")
+        reply.TargetIP = []HashableString{node.predecessor}
+    case NOTIFY:
+        fmt.Println("Received NOTIFY message")
+        nPrime := msg.SenderIP
+        if node.predecessor == HashableString("") ||
+           nPrime.GenerateHash().inBetween(
+            node.predecessor.GenerateHash(),
+            node.ipAddress.GenerateHash(),
+            false,
+        ) {
+            node.predecessor = nPrime
+        }
 		reply.MsgType = ACK
 	}
 	return nil // nil means no error, else will return reply
@@ -223,14 +274,14 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 
 func (n *Node) CreateNetwork() {
 	// following pseudo code
-	n.predecessor = IPAddress("")
+	n.predecessor = HashableString("")
 	n.successor = n.ipAddress // itself
 	fmt.Println("Succesfully Created Network", n)
 }
 
-func (n *Node) JoinNetwork(joiningIP IPAddress) {
+func (n *Node) JoinNetwork(joiningIP HashableString) {
 	// following pseudo code
-	n.predecessor = IPAddress("")
+	n.predecessor = HashableString("")
 
 	findSuccessorMsg := RMsg{
 		MsgType:    FIND_SUCCESSOR,
@@ -263,7 +314,7 @@ func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
 	}
 }
 
-func (n *Node) FindSuccessor(targetID Hash) IPAddress {
+func (n *Node) FindSuccessor(targetID Hash) HashableString {
 	sizeOfRing := math.Pow(2, M)
 	if targetID > Hash(sizeOfRing) {
 		panic("Bigger than Ring")
@@ -286,59 +337,64 @@ func (n *Node) FindSuccessor(targetID Hash) IPAddress {
 	}
 
 	reply := n.CallRPC(findSuccMsg, string(otherNodeIP))
-	fmt.Println(reply)
+    if len(reply.TargetIP) == 0 {
+        panic(fmt.Sprintf("%+v\n", reply))
+    }
 	return reply.TargetIP[0]
 }
 
 // TODO : not implemented correctly
-func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetID Hash) IPAddress {
+func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetID Hash) HashableString {
 	for i := numberOfMachines - 1; i >= 0; i-- {
-		if n.fingerTable[i].GenerateHash().inBetween(n.ipAddress.GenerateHash(), targetID, false) {
-			return n.fingerTable[i]
+		if n.fingerTable[i] != HashableString("") { // extra check to make sure our finger table is not empty
+			if n.fingerTable[i].GenerateHash().inBetween(n.ipAddress.GenerateHash(), targetID, false) {
+				return n.fingerTable[i]
+			}
 		}
+		
 	}
 	return n.ipAddress
 }
 
-func (n *Node) GenerateShortURL(longURL LongURL) ShortURL {
-	hash := sha256.Sum256([]byte(longURL))
+func (n *Node) GenerateShortURL(LongURL LongURL) ShortURL {
+	hash := sha256.Sum256([]byte(LongURL))
 	// 6-byte short URL for simplicity
 	// TODO: short url cannot just be hashed but should be a shorter url?
 	short := fmt.Sprintf("%x", hash[:6])
 	return ShortURL(short)
 }
 
-func (n *Node) StoreURL(shortURL ShortURL, longURL LongURL) {
-	targetNodeIP := n.FindSuccessor(IPAddress(shortURL).GenerateHash())
+func (n *Node) StoreURL(ShortURL ShortURL, LongURL LongURL) {
+	targetNodeIP := n.FindSuccessor(HashableString(ShortURL).GenerateHash())
 	if targetNodeIP == n.ipAddress {
-		n.urlMap[shortURL] = longURL
-		fmt.Printf("Stored URL: %s -> %s on Node %s\n", shortURL, longURL, n.ipAddress)
+		n.urlMap[ShortURL] = LongURL
+		fmt.Printf("Stored URL: %s -> %s on Node %s\n", ShortURL, LongURL, n.ipAddress)
 	} else {
 		storeMsg := RMsg{
 			MsgType:    STORE_URL,
 			SenderIP:   n.ipAddress,
 			RecieverIP: targetNodeIP,
-			StoreEntry: []Entry{{shortURL, longURL}},
+			StoreEntry: []Entry{{ShortURL, LongURL}},
 		}
 		fmt.Printf("Sending STORE_URL message to Node %s\n", targetNodeIP)
 		n.CallRPC(storeMsg, string(targetNodeIP))
 	}
 }
 
-func (n *Node) RetrieveURL(shortURL ShortURL) (LongURL, bool) {
-	targetNodeIP := n.FindSuccessor(IPAddress(shortURL).GenerateHash())
+func (n *Node) RetrieveURL(ShortURL ShortURL) (LongURL, bool) {
+	targetNodeIP := n.FindSuccessor(HashableString(ShortURL).GenerateHash())
 	if targetNodeIP == n.ipAddress {
-		longURL, found := n.urlMap[shortURL]
+		LongURL, found := n.urlMap[ShortURL]
 		if found {
-			fmt.Printf("Retrieved URL: %s -> %s from Node %s\n", shortURL, longURL, n.ipAddress)
+			fmt.Printf("Retrieved URL: %s -> %s from Node %s\n", ShortURL, LongURL, n.ipAddress)
 		}
-		return longURL, found
+		return LongURL, found
 	} else {
 		retrieveMsg := RMsg{
 			MsgType:    RETRIEVE_URL,
 			SenderIP:   n.ipAddress,
 			RecieverIP: targetNodeIP,
-			TargetHash: []Hash{IPAddress(shortURL).GenerateHash()},
+			TargetHash: []Hash{HashableString(ShortURL).GenerateHash()},
 		}
 		reply := n.CallRPC(retrieveMsg, string(targetNodeIP))
 		if len(reply.QueryResponse) > 0 {

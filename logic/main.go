@@ -66,8 +66,14 @@ func main() {
 		go currNode.Maintain() // fix_fingers, stabilise, check_pred
 	}
 
-	setFingersStatic(&nodeAr)
-	setSuccessor(&nodeAr)
+	time.Sleep(time.Second * 5)
+
+	for _, node := range nodeAr {
+		fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
+	}
+	return
+	// setFingersStatic(&nodeAr)
+	// setSuccessor(&nodeAr)
 
 	// for _, x := range nodeAr {
 	// 	fmt.Printf("HI THERE %+v, %d\n", x, x.GetIPAddress().GenerateHash())
@@ -78,7 +84,7 @@ func main() {
 
 	// testing URL Shortening and Retrieval
 	longURL := node.LongURL("http://example.com/long4-trial")
-	shortNode := nodeAr[0]
+	shortNode := nodeAr[0] // THIS IS NOT AVAILABLE
 	shortURL := shortNode.GenerateShortURL(longURL)
 
 	shortNode.StoreURL(shortURL, longURL)
