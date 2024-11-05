@@ -70,7 +70,7 @@ func main() {
 
 	setFingersStatic(&nodeAr)
 	setSuccessor(&nodeAr)
-	
+
 	for _, x := range nodeAr {
 		fmt.Printf("HI THERE %+v, %d\n", x, x.GetIPAddress().GenerateHash())
 		go x.Run()

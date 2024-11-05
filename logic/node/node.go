@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/rpc"
 	"strconv"
+	"sync"
 )
 
 type Hash uint64 //[32]byte
@@ -40,12 +41,13 @@ type Entry struct {
 
 type Node struct {
 	// id          uint64
+	// fixFingerNext int
 	ipAddress   IPAddress
 	fingerTable []IPAddress
 	successor   IPAddress
 	predecessor IPAddress
-	// fixFingerNext int
-	urlMap map[ShortURL]LongURL
+	urlMap      map[ShortURL]LongURL
+	mu          sync.Mutex
 }
 
 func (n *Node) SetSuccessor(ipAddress IPAddress) {
@@ -60,7 +62,7 @@ func (n *Node) GetFingerTable() *[]IPAddress {
 
 var nodeCount int
 
-func InitNode(nodeAr *[]*Node) (Node, []*Node) {
+func InitNode(nodeAr *[]*Node) (*Node, []*Node) {
 	nodeCount++
 	port := strconv.Itoa(nodeCount*1111 + nodeCount - 1)
 	helperIp := "0.0.0.0"
@@ -113,7 +115,7 @@ func InitNode(nodeAr *[]*Node) (Node, []*Node) {
 		node.JoinNetwork(IPAddress(helperIp + ":" + helperPort))
 	}
 
-	return node, *nodeAr
+	return &node, *nodeAr
 }
 
 func (n *Node) Run() {
@@ -178,11 +180,15 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		successor := node.FindSuccessor(msg.Payload[0]) // first value should be the target IP Address
 		reply.Payload = []IPAddress{successor}
 	case STORE_URL:
+		fmt.Println("Received STORE_URL message")
 		shortURL := ShortURL(msg.Payload[0])
 		longURL := LongURL(msg.Payload[1])
+		defer node.mu.Unlock()
+		node.mu.Lock()
 		node.urlMap[shortURL] = longURL
 		reply.MsgType = ACK
 	case RETRIEVE_URL:
+		fmt.Println("Received RETRIEVE_URL message")
 		shortURL := ShortURL(msg.Payload[0])
 		if longURL, found := node.urlMap[shortURL]; found {
 			reply.QueryResponse = []string{string(longURL)}
@@ -276,7 +282,7 @@ func (n *Node) GenerateShortURL(longURL LongURL) ShortURL {
 	hash := sha256.Sum256([]byte(longURL))
 	// 6-byte short URL for simplicity
 	// TODO: short url cannot just be hashed but should be a shorter url?
-	short := fmt.Sprintf("%x", hash[:6]) 
+	short := fmt.Sprintf("%x", hash[:6])
 	return ShortURL(short)
 }
 
