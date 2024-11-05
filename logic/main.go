@@ -55,9 +55,6 @@ func setSuccessor(nodeAr *[]*node.Node) {
 }
 
 func main() {
-	// size of ring
-	// var M float64
-	// M = 10
 
 	var nodeAr []*node.Node
 	nodeAr = make([]*node.Node, 0)
@@ -65,16 +62,17 @@ func main() {
 	// Initialize nodes
 	for i := 0; i < 10; i++ {
 		time.Sleep(1000)
-		node.InitNode(&nodeAr)
+		currNode := node.InitNode(&nodeAr)
+		go currNode.Maintain() // fix_fingers, stabilise, check_pred
 	}
 
 	setFingersStatic(&nodeAr)
 	setSuccessor(&nodeAr)
 
-	for _, x := range nodeAr {
-		fmt.Printf("HI THERE %+v, %d\n", x, x.GetIPAddress().GenerateHash())
-		go x.Run()
-	}
+	// for _, x := range nodeAr {
+	// 	fmt.Printf("HI THERE %+v, %d\n", x, x.GetIPAddress().GenerateHash())
+	// 	go x.Run()
+	// }
 
 	fmt.Print("testing for short and long url storing and generation")
 

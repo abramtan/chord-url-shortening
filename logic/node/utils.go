@@ -12,13 +12,15 @@ const (
 	EMPTY                  = "empty"                  // Placeholder or undefined message type or errenous communications.
 	JOIN                   = "join"                   // testing the join function
 	STORE_URL              = "store_url"              // Used to store a url in the node.
-	RETRIEVE_URL           = "retrieve_url"           // Used to retrieve a url from the node. 
+	RETRIEVE_URL           = "retrieve_url"           // Used to retrieve a url from the node.
 )
 
 type RMsg struct {
 	MsgType       string
-	OutgoingIP    IPAddress // Sender IP
-	IncomingIP    IPAddress // Receiver IP
-	QueryResponse []string
-	Payload       []IPAddress
+	SenderIP      IPAddress   // Sender IP
+	RecieverIP    IPAddress   // Receiver IP
+	QueryResponse []string    // ?
+	TargetHash    []Hash      // Hash Value of the value to be found (shortURL or IP Address )
+	TargetIP      []IPAddress // IP of the Found Node
+	StoreEntry    []Entry     // for {shortUrl, longUrl}
 }
