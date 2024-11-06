@@ -41,7 +41,6 @@ func (ip HashableString) isNil() bool {
 Function to generate the hash of the the input IP address
 */
 func (ip HashableString) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be the max num of machines our chord can take
-	// EST_NO_OF_MACHINES := 10 // This is actually not m
 	if ip.isNil() {
 		panic("Tried to call GenerateHash() on nil HashableString")
 	}
@@ -119,10 +118,10 @@ func InitNode(nodeAr *[]*Node) *Node {
 	// Register RPC methods and accept incoming requests
 	server.Register(&node)
 	fmt.Printf("Node is running at IP address: %s\n", tcpAddr.String())
-	fmt.Println("nodeIP", node.ipAddress)
 	go server.Accept(inbound)
 
 	/* Joining at the port 0.0.0.0:1111 */
+	// TODO : Handle joining at random nodes
 	if helperPort == port { // I am the joining node
 		*nodeAr = append(*nodeAr, &node)
 		node.CreateNetwork()
@@ -149,8 +148,6 @@ func (n *Node) stabilise() {
 	if succPred.isNil() {
 		fmt.Println("IS NIL?", succPred)
 	} else {
-		// n.successor.notify
-		fmt.Println("IS NOT NIL?", succPred)
 		if succPred.GenerateHash().inBetween(n.ipAddress.GenerateHash(), n.successor.GenerateHash(), false) {
 			fmt.Println("SETTING SUCCESSOR", n.ipAddress, n.successor, succPred)
 			n.successor = succPred
@@ -186,9 +183,7 @@ func (n *Node) Maintain() {
 	for {
 		n.fixFingers()
 		n.stabilise()
-		// time.Sleep(time.Duration(rand.IntN(10000))*time.Millisecond)
 		time.Sleep(1 * time.Millisecond)
-
 	}
 }
 
@@ -229,7 +224,7 @@ func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
 	}
 	err = clnt.Call("Node.HandleIncomingMessage", &msg, &reply)
 	if err != nil {
-		fmt.Println("Error calling RPC", err)
+		// fmt.Println("Error calling RPC", err)
 		fmt.Printf("Nodeid: %s IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
 		reply.MsgType = EMPTY
 		return reply
@@ -242,8 +237,8 @@ func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
 NODE Function to handle incoming RPC Calls and where to route them
 */
 func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
-	fmt.Println("msg", msg, "node ip", node.ipAddress)
-	fmt.Println("Message of type", msg.MsgType, "received.")
+	// fmt.Println("msg", msg, "node ip", node.ipAddress)
+	fmt.Println("Message of type", msg, "received.")
 	switch msg.MsgType {
 	case JOIN:
 		fmt.Println("Received JOIN message")
@@ -270,22 +265,31 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		}
 		reply.MsgType = ACK
 	case GET_PREDECESSOR:
-		fmt.Println("Received GET PRED message")
+		fmt.Println("Received GET PRED message", node.Predecessor)
 		reply.TargetIP = []HashableString{node.Predecessor}
 	case NOTIFY:
 		fmt.Println("Received NOTIFY message")
 		nPrime := msg.SenderIP
-		if node.Predecessor.isNil() ||
-			nPrime.GenerateHash().inBetween(
-				node.Predecessor.GenerateHash(),
-				node.ipAddress.GenerateHash(),
-				false,
-			) {
-			node.Predecessor = nPrime
-		}
+		node.Notify(nPrime)
 		reply.MsgType = ACK
 	}
 	return nil // nil means no error, else will return reply
+}
+
+func (node *Node) Notify(nPrime HashableString) {
+	if node.Predecessor.isNil() {
+		node.Predecessor = nPrime
+	}
+
+	// handle the exception case of nPrime == node.Pred || node.ipAddress
+
+	if nPrime.GenerateHash().inBetween(
+		node.Predecessor.GenerateHash(),
+		node.ipAddress.GenerateHash(),
+		false,
+	) {
+		node.Predecessor = nPrime
+	}
 }
 
 func (n *Node) CreateNetwork() {
@@ -314,8 +318,6 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 
 func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
 	if start == until {
-		// TODO : if somehow the node is hitting this cause passing start == until
-		// and not the only node in the rinG
 		return true
 	} else if start < until {
 		if includingUntil {
@@ -324,11 +326,10 @@ func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
 			return start < id && id < until
 		}
 	} else {
-		// TODO : some issue with this, maybe the OR function
 		if includingUntil {
-			return until <= id || id < start
+			return start < id || id <= until
 		} else {
-			return until < id || id < start
+			return start < id || id < until
 		}
 	}
 }

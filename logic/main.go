@@ -71,7 +71,8 @@ func main() {
 	for _, node := range nodeAr {
 		fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
 	}
-	return
+
+	// return
 	// setFingersStatic(&nodeAr)
 	// setSuccessor(&nodeAr)
 
