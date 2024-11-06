@@ -94,30 +94,4 @@ func main() {
 	for _, node := range nodeAr {
 		fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
 	}
-
-	// return
-	// setFingersStatic(&nodeAr)
-	// setSuccessor(&nodeAr)
-
-	// for _, x := range nodeAr {
-	// 	fmt.Printf("HI THERE %+v, %d\n", x, x.GetIPAddress().GenerateHash())
-	// 	go x.Run()
-	// }
-
-	// fmt.Print("testing for short and long url storing and generation")
-
-	// // testing URL Shortening and Retrieval
-	// longURL := node.LongURL("http://example.com/long4-trial")
-	// shortNode := nodeAr[0] // THIS IS NOT AVAILABLE
-	// shortURL := shortNode.GenerateShortURL(longURL)
-
-	// shortNode.StoreURL(shortURL, longURL)
-	// retrievedURL, found := shortNode.RetrieveURL(shortURL)
-
-	// if found {
-	// 	fmt.Printf("URL Retrieved: %s -> %s\n", shortURL, retrievedURL)
-	// } else {
-	// 	fmt.Println("URL not found")
-	// }
-	// time.Sleep(10 * time.Second)
 }
