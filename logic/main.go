@@ -22,17 +22,12 @@ func main() {
 
 	// testing URL Shortening and Retrieval
 	clientNode := node.InitClient()
-	// urlList := make(map[string]string, 0)
-	// urlList["tinyurl.com/trial"] = "http://example.com/long4-trial"
 
 	longURL := "http://example.com/long4-trial"
-	// shortURL := "tinyurl.com/trial"
 	shortURL := string(clientNode.GenerateShortURL(node.LongURL(longURL)))
 	finalIP := clientNode.ClientSendStoreURL(longURL, shortURL, nodeAr)
 	fmt.Println("Reached Final IP", finalIP)
 	time.Sleep(10 * time.Millisecond)
-
-	// shortNode.StoreURL(shortURL, longURL)
 
 	retrievedEntry, found := clientNode.ClientRetrieveURL(shortURL, nodeAr)
 

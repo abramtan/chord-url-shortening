@@ -1,129 +1,16 @@
 package node
 
 import (
-	"crypto/sha256"
+	"errors"
 	"fmt"
 	"math"
-	"math/big"
-	"math/rand/v2"
-
-	// "math/rand/v2"
-	"errors"
 	"net"
 	"net/rpc"
 	"strconv"
-	"sync"
 	"time"
 )
 
-type Hash uint64 //[32]byte
-
-type HashableString string
-
-type ShortURL string
-
-type LongURL string
-
-func nilLongURL() LongURL {
-	return LongURL("")
-}
-
-func (u LongURL) isNil() bool {
-	return u == nilLongURL()
-}
-
-// Constants
-const (
-	M = 10
-	// CACHE_SIZE         = 5
-	// REPLICATION_FACTOR = 2
-)
-
-func nilHashableString() HashableString {
-	return HashableString("")
-}
-
-func (ip HashableString) isNil() bool {
-	return ip == nilHashableString()
-}
-
-/*
-Function to generate the hash of the the input IP address
-*/
-func (ip HashableString) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES should be the max num of machines our chord can take
-	if ip.isNil() {
-		panic("Tried to call GenerateHash() on nil HashableString")
-	}
-
-	MAX_RING_SIZE := int64(math.Pow(2, float64(M)))
-
-	data := []byte(ip)
-	id := sha256.Sum256(data)
-	unmoddedID := new(big.Int).SetBytes(id[:8])
-	modValue := new(big.Int).SetInt64(MAX_RING_SIZE)
-	moddedID := new(big.Int).Mod(unmoddedID, modValue)
-	return Hash(moddedID.Int64())
-}
-
-type Entry struct {
-	ShortURL ShortURL
-	LongURL  LongURL
-}
-
-type Node struct {
-	// id          uint64
-	fixFingerNext int
-	ipAddress     HashableString
-	fingerTable   []HashableString
-	successor     HashableString
-	Predecessor   HashableString
-	urlMap        map[ShortURL]LongURL
-	mu            sync.Mutex
-}
-
-func (n *Node) SetSuccessor(ipAddress HashableString) {
-	n.successor = ipAddress
-}
-func (n *Node) GetIPAddress() HashableString {
-	return n.ipAddress
-}
-func (n *Node) GetFingerTable() *[]HashableString {
-	return &n.fingerTable
-}
-
 var nodeCount int
-
-func InitClient() *Node {
-	// port := strconv.Itoa(nodeCount*1111 + nodeCount - 1)
-
-	var addr = "0.0.0.0" + ":" + "1110"
-
-	// Create new Node object for client
-	node := Node{
-		ipAddress: HashableString(addr),
-	}
-
-	fmt.Println("My Client IP Address is", string(node.ipAddress))
-
-	// Bind yourself to a port and listen to it
-	tcpAddr, errtc := net.ResolveTCPAddr("tcp", string(node.ipAddress))
-	if errtc != nil {
-		fmt.Println("Error resolving Client TCP address", errtc)
-	}
-	inbound, errin := net.ListenTCP("tcp", tcpAddr)
-	if errin != nil {
-		fmt.Println("Could not listen to Client TCP address", errin)
-	}
-
-	// Register new server (because we are running goroutines)
-	server := rpc.NewServer()
-	// Register RPC methods and accept incoming requests
-	server.Register(&node)
-	fmt.Printf("Client node is running at IP address: %s\n", tcpAddr.String())
-	go server.Accept(inbound)
-
-	return &node
-}
 
 func InitNode(nodeAr *[]*Node) *Node {
 	nodeCount++
@@ -141,6 +28,7 @@ func InitNode(nodeAr *[]*Node) *Node {
 		ipAddress:   HashableString(addr),
 		fingerTable: make([]HashableString, M), // this is the length of the finger table 2**M
 		urlMap:      make(map[ShortURL]LongURL),
+		succList:    make([]HashableString, REPLICAS),
 	}
 
 	fmt.Println("My IP Address is", string(node.ipAddress))
@@ -252,30 +140,6 @@ func (n *Node) Run() {
 }
 
 /*
-Node utility function to call RPC given a request message, and a destination IP address.
-*/
-func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
-	fmt.Printf("Nodeid: %v IP: %s is sending message %v to IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
-	clnt, err := rpc.Dial("tcp", IP)
-	reply := RMsg{}
-	if err != nil {
-		// fmt.Printf(msg.msgType)
-		fmt.Printf("Nodeid: %v IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
-		reply.MsgType = EMPTY
-		return reply
-	}
-	err = clnt.Call("Node.HandleIncomingMessage", &msg, &reply)
-	if err != nil {
-		// fmt.Println("Error calling RPC", err)
-		fmt.Printf("Nodeid: %s IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
-		reply.MsgType = EMPTY
-		return reply
-	}
-	fmt.Printf("Received reply from %s\n", IP)
-	return reply
-}
-
-/*
 NODE Function to handle incoming RPC Calls and where to route them
 */
 func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
@@ -350,8 +214,6 @@ func (node *Node) Notify(nPrime HashableString) {
 		node.Predecessor = nPrime
 	}
 
-	// handle the exception case of nPrime == node.Pred || node.ipAddress
-
 	if nPrime.GenerateHash().inBetween(
 		node.Predecessor.GenerateHash(),
 		node.ipAddress.GenerateHash(),
@@ -362,14 +224,12 @@ func (node *Node) Notify(nPrime HashableString) {
 }
 
 func (n *Node) CreateNetwork() {
-	// following pseudo code
 	n.Predecessor = nilHashableString()
 	n.successor = n.ipAddress // itself
 	fmt.Println("Succesfully Created Network", n)
 }
 
 func (n *Node) JoinNetwork(joiningIP HashableString) {
-	// following pseudo code
 	n.Predecessor = nilHashableString()
 
 	findSuccessorMsg := RMsg{
@@ -383,24 +243,6 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 	n.successor = reply.TargetIP
 
 	fmt.Println("Succesfully Joined Network", n, reply)
-}
-
-func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
-	if start == until {
-		return true
-	} else if start < until {
-		if includingUntil {
-			return start < id && id <= until
-		} else {
-			return start < id && id < until
-		}
-	} else {
-		if includingUntil {
-			return start < id || id <= until
-		} else {
-			return start < id || id < until
-		}
-	}
 }
 
 func (n *Node) FindSuccessor(targetID Hash) HashableString {
@@ -432,7 +274,6 @@ func (n *Node) FindSuccessor(targetID Hash) HashableString {
 	return reply.TargetIP
 }
 
-// TODO : not implemented correctly
 func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetID Hash) HashableString {
 	for i := numberOfMachines - 1; i >= 0; i-- {
 		if n.fingerTable[i] != HashableString("") { // extra check to make sure our finger table is not empty
@@ -442,57 +283,6 @@ func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetID Hash) Hashabl
 		}
 	}
 	return n.ipAddress
-}
-
-func (n *Node) GenerateShortURL(LongURL LongURL) ShortURL {
-	hash := sha256.Sum256([]byte(LongURL))
-	// 6-byte short URL for simplicity
-	// TODO: short url cannot just be hashed but should be a shorter url?
-	short := fmt.Sprintf("%x", hash[:6])
-	return ShortURL(short)
-}
-
-func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Node) HashableString {
-	longURL := LongURL(longUrl)
-	shortURL := ShortURL(shortUrl)
-
-	// currently hardcoded the list of nodes that the client can call
-	callNode := nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE
-
-	// clientIP := node.HashableString("clientIP")
-	clientStoreMsg := RMsg{
-		MsgType:    CLIENT_STORE_URL,
-		SenderIP:   n.GetIPAddress(),
-		RecieverIP: callNode.GetIPAddress(),
-		StoreEntry: Entry{ShortURL: shortURL, LongURL: longURL},
-	}
-
-	fmt.Printf("Client sending CLIENT_STORE_URL message to Node %s\n", callNode.GetIPAddress())
-	// for checking purposes
-	reply := n.CallRPC(clientStoreMsg, string(callNode.GetIPAddress()))
-	fmt.Println("NODE :", reply.TargetIP, "successfully stored shortURL.")
-	return reply.TargetIP
-}
-
-func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node) (Entry, bool) {
-	// longURL := LongURL(longUrl)
-	shortURL := ShortURL(shortUrl)
-
-	// currently hardcoded the list of nodes that the client can call
-	callNode := nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE IRL
-
-	// clientIP := node.HashableString("clientIP")
-	clientRetrieveMsg := RMsg{
-		MsgType:       CLIENT_RETRIEVE_URL,
-		SenderIP:      n.GetIPAddress(),
-		RecieverIP:    callNode.GetIPAddress(),
-		RetrieveEntry: Entry{ShortURL: shortURL, LongURL: nilLongURL()},
-	}
-
-	fmt.Printf("Client sending CLIENT_RETRIEVE_URL message to Node %s\n", callNode.GetIPAddress())
-	// for checking purposes
-	reply := n.CallRPC(clientRetrieveMsg, string(callNode.GetIPAddress()))
-	return reply.RetrieveEntry, !reply.RetrieveEntry.LongURL.isNil()
 }
 
 func (n *Node) StoreURL(entry Entry) (HashableString, error) {
