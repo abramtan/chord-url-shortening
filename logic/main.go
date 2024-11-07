@@ -55,7 +55,6 @@ func setSuccessor(nodeAr *[]*node.Node) {
 }
 
 func main() {
-
 	var nodeAr []*node.Node
 	nodeAr = make([]*node.Node, 0)
 
@@ -66,35 +65,33 @@ func main() {
 		go currNode.Maintain() // fix_fingers, stabilise, check_pred
 	}
 
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 2)
+
+	fmt.Print("testing for short and long url storing and generation")
+
+	// testing URL Shortening and Retrieval
+	clientNode := node.InitClient()
+	// urlList := make(map[string]string, 0)
+	// urlList["tinyurl.com/trial"] = "http://example.com/long4-trial"
+
+	longURL := "http://example.com/long4-trial"
+	shortURL := "tinyurl.com/trial"
+	finalIP := clientNode.ClientSendStoreURL(longURL, shortURL, nodeAr)
+	fmt.Println("Reached Final IP", finalIP)
+	time.Sleep(10 * time.Millisecond)
+
+	// shortNode.StoreURL(shortURL, longURL)
+
+	retrievedEntry, found := clientNode.ClientRetrieveURL(shortURL, nodeAr)
+
+	fmt.Println("retrieve entry", retrievedEntry, "found", found)
+	if found {
+		fmt.Printf("URL Retrieved: %s -> %s\n", retrievedEntry.ShortURL, retrievedEntry.LongURL)
+	} else {
+		fmt.Println("URL not found")
+	}
 
 	for _, node := range nodeAr {
 		fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
 	}
-
-	// return
-	// setFingersStatic(&nodeAr)
-	// setSuccessor(&nodeAr)
-
-	// for _, x := range nodeAr {
-	// 	fmt.Printf("HI THERE %+v, %d\n", x, x.GetIPAddress().GenerateHash())
-	// 	go x.Run()
-	// }
-
-	// fmt.Print("testing for short and long url storing and generation")
-
-	// // testing URL Shortening and Retrieval
-	// longURL := node.LongURL("http://example.com/long4-trial")
-	// shortNode := nodeAr[0] // THIS IS NOT AVAILABLE
-	// shortURL := shortNode.GenerateShortURL(longURL)
-
-	// shortNode.StoreURL(shortURL, longURL)
-	// retrievedURL, found := shortNode.RetrieveURL(shortURL)
-
-	// if found {
-	// 	fmt.Printf("URL Retrieved: %s -> %s\n", shortURL, retrievedURL)
-	// } else {
-	// 	fmt.Println("URL not found")
-	// }
-	// time.Sleep(10 * time.Second)
 }
