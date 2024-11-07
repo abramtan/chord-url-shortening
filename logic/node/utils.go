@@ -15,10 +15,10 @@ import (
 const (
 	PING                   = "ping"                   // Used to check predecessor.
 	ACK                    = "ack"                    // Used for general acknowledgements.
-	GET_SUCCESSOR          = "get_successor"          // Used in RPC call to get node.Successor
 	FIND_SUCCESSOR         = "find_successor"         // Used to find successor.
 	CLOSEST_PRECEDING_NODE = "closest_preceding_node" // Used to find the closest preceding node, given a successor id.
 	GET_PREDECESSOR        = "get_predecessor"        // Used to get the predecessor of some node.
+	GET_SUCCESSOR_LIST     = "get_successor"          // Used in RPC call to get node.Successor
 	NOTIFY                 = "notify"                 // Used to notify a node about a new predecessor.
 	EMPTY                  = "empty"                  // Placeholder or undefined message type or errenous communications.
 	JOIN                   = "join"                   // testing the join function
@@ -36,8 +36,19 @@ type RMsg struct {
 	TargetIP      HashableString // IP of the Found Node
 	StoreEntry    Entry          // for passing the short/long URL pair to be stored for a ShortURL request
 	RetrieveEntry Entry          // for passing the retrieved longURL for a RetrieveURL request
-	// ClientIP        HashableString
-	// QueryResponse []string         // ?
+	HopCount      int            // For succList
+	SuccList      []HashableString
+}
+
+type Node struct {
+	mu            sync.Mutex
+	ipAddress     HashableString
+	fixFingerNext int
+	fingerTable   []HashableString
+	successor     HashableString
+	Predecessor   HashableString
+	UrlMap        map[ShortURL]LongURL
+	SuccList      []HashableString
 }
 
 type Hash uint64 //[32]byte
@@ -68,18 +79,7 @@ type Entry struct {
 	LongURL  LongURL
 }
 
-type Node struct {
-	mu            sync.Mutex
-	ipAddress     HashableString
-	fixFingerNext int
-	fingerTable   []HashableString
-	successor     HashableString
-	Predecessor   HashableString
-	urlMap        map[ShortURL]LongURL
-	succList      []HashableString
-}
-
-// Util Functions for Nodes
+// UTILITY FUNCTIONS - Node
 
 /*
 Node utility function to call RPC given a request message, and a destination IP address.
@@ -125,7 +125,7 @@ func (n *Node) GetFingerTable() *[]HashableString {
 	return &n.fingerTable
 }
 
-// Util functions for HashableStrings
+// UTILITY FUNCTIONS - HashableString
 
 func nilHashableString() HashableString {
 	return HashableString("")
@@ -151,7 +151,7 @@ func (ip HashableString) GenerateHash() Hash { // TODO: EST_NO_OF_MACHINES shoul
 	return Hash(moddedID.Int64())
 }
 
-// Util Functions for Hash
+// UTILITY FUNCTIONS - Hash
 
 func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
 	if start == until {
@@ -171,7 +171,8 @@ func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
 	}
 }
 
-// Util Function for Client Node
+// UTILITY FUNCTIONS - ClientNode
+
 func InitClient() *Node {
 	var addr = "0.0.0.0" + ":" + "1110"
 
