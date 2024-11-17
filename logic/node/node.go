@@ -89,8 +89,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 // TODO : to implement this at the end of stablise()
 // TODO : Synch SuccessorLists? (via taking successors.succlist and then prepending n.successor)
 // TODO : implement checkSuccessorAlive in stablise ==> need to update the successor + succList
-func (n *Node) initSuccList() ([]HashableString, error) {
-	// REPLICAS
+func (n *Node) InitSuccList() ([]HashableString, error) {
 
 	initSuccessorListMsg := RMsg{
 		MsgType:    CREATE_SUCCESSOR_LIST,
@@ -203,8 +202,6 @@ func InitNode(nodeAr *[]*Node) *Node {
 		node.JoinNetwork(HashableString(helperIp + ":" + helperPort))
 	}
 
-	// go node.Maintain()
-
 	return &node
 }
 
@@ -256,7 +253,8 @@ func (n *Node) Maintain() {
 	for {
 		n.fixFingers()
 		n.stabilise()
-		time.Sleep(1 * time.Millisecond)
+		n.MaintainSuccList()
+		time.Sleep(2 * time.Millisecond)
 	}
 }
 
