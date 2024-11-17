@@ -47,7 +47,7 @@ type Node struct {
 	fixFingerNext int
 	fingerTable   []HashableString
 	successor     HashableString
-	Predecessor   HashableString
+	predecessor   HashableString
 	UrlMap        map[ShortURL]LongURL
 	SuccList      []HashableString
 }

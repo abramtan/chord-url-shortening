@@ -69,12 +69,15 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		}
 		reply.MsgType = ACK
 	case GET_PREDECESSOR:
-		fmt.Println("Received GET PRED message", node.Predecessor)
-		reply.TargetIP = node.Predecessor
+		fmt.Println("Received GET PRED message", node.predecessor)
+		reply.TargetIP = node.predecessor
 	case NOTIFY:
 		fmt.Println("Received NOTIFY message")
 		nPrime := msg.SenderIP
 		node.Notify(nPrime)
+		reply.MsgType = ACK
+	case PING:
+		fmt.Println("Received PING message")
 		reply.MsgType = ACK
 	case CREATE_SUCCESSOR_LIST:
 		node.appendSuccList(msg.HopCount, msg.SuccList)
@@ -249,10 +252,26 @@ func (n *Node) fixFingers() {
 	n.fingerTable[n.fixFingerNext] = n.FindSuccessor(Hash(convToHash))
 }
 
+func (n *Node) checkPredecessor() {
+	pingMsg := RMsg{
+		MsgType:    PING,
+		SenderIP:   n.ipAddress,
+		RecieverIP: n.predecessor,
+	}
+
+	// RPC call to predecessor
+	reply := n.CallRPC(pingMsg, string(n.predecessor))
+	// No response from predecessor, set predecessor to nil
+	if reply.MsgType == EMPTY {
+		n.predecessor = nilHashableString()
+	}
+}
+
 func (n *Node) Maintain() {
 	for {
 		n.fixFingers()
 		n.stabilise()
+		n.checkPredecessor()
 		n.MaintainSuccList()
 		time.Sleep(2 * time.Millisecond)
 	}
@@ -281,27 +300,27 @@ func (n *Node) Run() {
 }
 
 func (node *Node) Notify(nPrime HashableString) {
-	if node.Predecessor.isNil() {
-		node.Predecessor = nPrime
+	if node.predecessor.isNil() {
+		node.predecessor = nPrime
 	}
 
 	if nPrime.GenerateHash().inBetween(
-		node.Predecessor.GenerateHash(),
+		node.predecessor.GenerateHash(),
 		node.ipAddress.GenerateHash(),
 		false,
 	) {
-		node.Predecessor = nPrime
+		node.predecessor = nPrime
 	}
 }
 
 func (n *Node) CreateNetwork() {
-	n.Predecessor = nilHashableString()
+	n.predecessor = nilHashableString()
 	n.successor = n.ipAddress // itself
 	fmt.Println("Succesfully Created Network", n)
 }
 
 func (n *Node) JoinNetwork(joiningIP HashableString) {
-	n.Predecessor = nilHashableString()
+	n.predecessor = nilHashableString()
 
 	findSuccessorMsg := RMsg{
 		MsgType:    FIND_SUCCESSOR,
