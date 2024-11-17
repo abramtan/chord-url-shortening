@@ -18,7 +18,8 @@ const (
 	FIND_SUCCESSOR         = "find_successor"         // Used to find successor.
 	CLOSEST_PRECEDING_NODE = "closest_preceding_node" // Used to find the closest preceding node, given a successor id.
 	GET_PREDECESSOR        = "get_predecessor"        // Used to get the predecessor of some node.
-	GET_SUCCESSOR_LIST     = "get_successor"          // Used in RPC call to get node.Successor
+	CREATE_SUCCESSOR_LIST  = "create_successor_list"  // Used in RPC call to get node.Successor
+	GET_SUCCESSOR_LIST     = "get_successor_list"     // get the successor's successor list to maintain list
 	NOTIFY                 = "notify"                 // Used to notify a node about a new predecessor.
 	EMPTY                  = "empty"                  // Placeholder or undefined message type or errenous communications.
 	JOIN                   = "join"                   // testing the join function

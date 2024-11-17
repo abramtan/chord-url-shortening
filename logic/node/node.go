@@ -76,8 +76,10 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		nPrime := msg.SenderIP
 		node.Notify(nPrime)
 		reply.MsgType = ACK
-	case GET_SUCCESSOR_LIST:
+	case CREATE_SUCCESSOR_LIST:
 		node.appendSuccList(msg.HopCount, msg.SuccList)
+	case GET_SUCCESSOR_LIST:
+		reply.SuccList = node.SuccList
 	case EMPTY:
 		panic("ERROR, EMPTY MESSAGE")
 	}
@@ -91,7 +93,7 @@ func (n *Node) initSuccList() ([]HashableString, error) {
 	// REPLICAS
 
 	initSuccessorListMsg := RMsg{
-		MsgType:    GET_SUCCESSOR_LIST,
+		MsgType:    CREATE_SUCCESSOR_LIST,
 		SenderIP:   n.ipAddress,
 		RecieverIP: n.successor,
 		HopCount:   REPLICAS,
@@ -122,7 +124,7 @@ func (n *Node) appendSuccList(hopCount int, succList []HashableString) ([]Hashab
 		succList = append(succList, n.ipAddress)
 
 		forwardSuccessorListMsg := RMsg{
-			MsgType:    GET_SUCCESSOR_LIST,
+			MsgType:    CREATE_SUCCESSOR_LIST,
 			SenderIP:   n.ipAddress,
 			RecieverIP: n.successor,
 			HopCount:   hopCount,
@@ -134,10 +136,23 @@ func (n *Node) appendSuccList(hopCount int, succList []HashableString) ([]Hashab
 	}
 }
 
-func (n *Node) StabliseSuccList() {
+func (n *Node) MaintainSuccList() {
 	// ping successor
 	// if active, take successor.succList[:-1] and then prepend n.successor ==> make this the succList
-	//
+
+	// step 1 : check first successor in successor list
+	// successor := n.successor
+	getSuccList := RMsg{
+		MsgType:    GET_SUCCESSOR_LIST,
+		SenderIP:   n.ipAddress,
+		RecieverIP: n.successor,
+	}
+
+	reply := n.CallRPC(getSuccList, string(n.successor))
+	successorSuccList := reply.SuccList
+	n.mu.Lock()
+	n.SuccList = append([]HashableString{n.successor}, successorSuccList[:len(successorSuccList)-1]...) // exclude last element
+	n.mu.Unlock()
 }
 
 func InitNode(nodeAr *[]*Node) *Node {
