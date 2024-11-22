@@ -3,6 +3,7 @@ package node
 import (
 	"crypto/sha256"
 	"fmt"
+	"log"
 	"math"
 	"math/big"
 	"math/rand/v2"
@@ -86,23 +87,23 @@ type Entry struct {
 Node utility function to call RPC given a request message, and a destination IP address.
 */
 func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
-	fmt.Printf("Nodeid: %v IP: %s is sending message %v to IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
+	log.Printf("Nodeid: %v IP: %s is sending message %v to IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
 	clnt, err := rpc.Dial("tcp", IP)
 	reply := RMsg{}
 	if err != nil {
-		// fmt.Printf(msg.msgType)
-		fmt.Printf("Nodeid: %v IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
+		// log.Printf(msg.msgType)
+		log.Printf("Nodeid: %v IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
 		reply.MsgType = EMPTY
 		return reply
 	}
 	err = clnt.Call("Node.HandleIncomingMessage", &msg, &reply)
 	if err != nil {
-		// fmt.Println("Error calling RPC", err)
-		fmt.Printf("Nodeid: %s IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
+		// log.Println("Error calling RPC", err)
+		log.Printf("Nodeid: %s IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
 		reply.MsgType = EMPTY
 		return reply
 	}
-	fmt.Printf("Received reply from %s\n", IP)
+	log.Printf("Received reply from %s\n", IP)
 	return reply
 }
 
@@ -111,6 +112,7 @@ func (n *Node) GenerateShortURL(LongURL LongURL) ShortURL {
 	// 6-byte short URL for simplicity
 	// TODO: short url cannot just be hashed but should be a shorter url?
 	short := fmt.Sprintf("%x", hash[:6])
+	// log.Println(short)
 	return ShortURL(short)
 }
 
@@ -182,23 +184,23 @@ func InitClient() *Node {
 		ipAddress: HashableString(addr),
 	}
 
-	fmt.Println("My Client IP Address is", string(node.ipAddress))
+	log.Println("My Client IP Address is", string(node.ipAddress))
 
 	// Bind yourself to a port and listen to it
 	tcpAddr, errtc := net.ResolveTCPAddr("tcp", string(node.ipAddress))
 	if errtc != nil {
-		fmt.Println("Error resolving Client TCP address", errtc)
+		log.Println("Error resolving Client TCP address", errtc)
 	}
 	inbound, errin := net.ListenTCP("tcp", tcpAddr)
 	if errin != nil {
-		fmt.Println("Could not listen to Client TCP address", errin)
+		log.Println("Could not listen to Client TCP address", errin)
 	}
 
 	// Register new server (because we are running goroutines)
 	server := rpc.NewServer()
 	// Register RPC methods and accept incoming requests
 	server.Register(&node)
-	fmt.Printf("Client node is running at IP address: %s\n", tcpAddr.String())
+	log.Printf("Client node is running at IP address: %s\n", tcpAddr.String())
 	go server.Accept(inbound)
 
 	return &node
@@ -219,10 +221,10 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 		StoreEntry: Entry{ShortURL: shortURL, LongURL: longURL},
 	}
 
-	fmt.Printf("Client sending CLIENT_STORE_URL message to Node %s\n", callNode.GetIPAddress())
+	log.Printf("Client sending CLIENT_STORE_URL message to Node %s\n", callNode.GetIPAddress())
 	// for checking purposes
 	reply := n.CallRPC(clientStoreMsg, string(callNode.GetIPAddress()))
-	fmt.Println("NODE :", reply.TargetIP, "successfully stored shortURL.")
+	log.Println("NODE :", reply.TargetIP, "successfully stored shortURL.")
 	return reply.TargetIP
 }
 
@@ -241,7 +243,7 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node) (Entry, bool) 
 		RetrieveEntry: Entry{ShortURL: shortURL, LongURL: nilLongURL()},
 	}
 
-	fmt.Printf("Client sending CLIENT_RETRIEVE_URL message to Node %s\n", callNode.GetIPAddress())
+	log.Printf("Client sending CLIENT_RETRIEVE_URL message to Node %s\n", callNode.GetIPAddress())
 	// for checking purposes
 	reply := n.CallRPC(clientRetrieveMsg, string(callNode.GetIPAddress()))
 	return reply.RetrieveEntry, !reply.RetrieveEntry.LongURL.isNil()

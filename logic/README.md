@@ -18,6 +18,7 @@
 5. Refinements
    1. Dynamic IPs and Dynamic Join
    2. Error Handling - node failures, etc.
+6. Byzantine Fault Tolerance
 
 
 ## Additional Considerations

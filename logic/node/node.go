@@ -2,7 +2,7 @@ package node
 
 import (
 	"errors"
-	"fmt"
+	"log"
 	"math"
 	"net"
 	"net/rpc"
@@ -16,29 +16,29 @@ var nodeCount int
 NODE Function to handle incoming RPC Calls and where to route them
 */
 func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
-	// fmt.Println("msg", msg, "node ip", node.ipAddress)
-	fmt.Println("Message of type", msg, "received.")
+	// log.Println("msg", msg, "node ip", node.ipAddress)
+	log.Println("Message of type", msg, "received.")
 	switch msg.MsgType {
 	case JOIN:
-		fmt.Println("Received JOIN message")
+		log.Println("Received JOIN message")
 		reply.MsgType = ACK
 	case FIND_SUCCESSOR:
-		fmt.Println("Received FIND SUCCESSOR message")
-		fmt.Println(msg.TargetHash)
+		log.Println("Received FIND SUCCESSOR message")
+		log.Println(msg.TargetHash)
 		successor := node.FindSuccessor(msg.TargetHash) // first value should be the target IP Address
 		reply.TargetIP = successor
 	case CLIENT_STORE_URL:
-		fmt.Println("Received CLIENT_STORE_URL message")
+		log.Println("Received CLIENT_STORE_URL message")
 		entry := msg.StoreEntry
 		ip, err := node.StoreURL(entry)
 		reply.TargetIP = ip
 		reply.MsgType = ACK
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 			reply.MsgType = EMPTY
 		}
 	case CLIENT_RETRIEVE_URL:
-		fmt.Println("Received CLIENT_RETRIEVE_URL message")
+		log.Println("Received CLIENT_RETRIEVE_URL message")
 		ShortURL := msg.RetrieveEntry.ShortURL
 		LongURL, found := node.RetrieveURL(ShortURL)
 		if found {
@@ -53,15 +53,15 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		defer node.mu.Unlock()
 		node.mu.Lock()
 		node.UrlMap[entry.ShortURL] = entry.LongURL
-		fmt.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
+		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
 		// send appropiate reply back to the initial node that the client contacted
 		reply.TargetIP = node.ipAddress
 		reply.MsgType = ACK
 	case RETRIEVE_URL:
-		fmt.Println("Received RETRIEVE_URL message")
+		log.Println("Received RETRIEVE_URL message")
 		ShortURL := msg.RetrieveEntry.ShortURL
 		LongURL, found := node.UrlMap[ShortURL]
-		fmt.Println("AFTER RECV, RETRIEVED LONGURL", LongURL)
+		log.Println("AFTER RECV, RETRIEVED LONGURL", LongURL)
 		if found {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: LongURL}
 		} else {
@@ -69,15 +69,15 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		}
 		reply.MsgType = ACK
 	case GET_PREDECESSOR:
-		fmt.Println("Received GET PRED message", node.predecessor)
+		log.Println("Received GET PRED message", node.predecessor)
 		reply.TargetIP = node.predecessor
 	case NOTIFY:
-		fmt.Println("Received NOTIFY message")
+		log.Println("Received NOTIFY message")
 		nPrime := msg.SenderIP
 		node.Notify(nPrime)
 		reply.MsgType = ACK
 	case PING:
-		fmt.Println("Received PING message")
+		log.Println("Received PING message")
 		reply.MsgType = ACK
 	case CREATE_SUCCESSOR_LIST:
 		node.appendSuccList(msg.HopCount, msg.SuccList)
@@ -176,23 +176,23 @@ func InitNode(nodeAr *[]*Node) *Node {
 		SuccList:    make([]HashableString, REPLICAS),
 	}
 
-	fmt.Println("My IP Address is", string(node.ipAddress))
+	log.Println("My IP Address is", string(node.ipAddress))
 
 	// Bind yourself to a port and listen to it
 	tcpAddr, errtc := net.ResolveTCPAddr("tcp", string(node.ipAddress))
 	if errtc != nil {
-		fmt.Println("Error resolving TCP address", errtc)
+		log.Println("Error resolving TCP address", errtc)
 	}
 	inbound, errin := net.ListenTCP("tcp", tcpAddr)
 	if errin != nil {
-		fmt.Println("Could not listen to TCP address", errin)
+		log.Println("Could not listen to TCP address", errin)
 	}
 
 	// Register new server (because we are running goroutines)
 	server := rpc.NewServer()
 	// Register RPC methods and accept incoming requests
 	server.Register(&node)
-	fmt.Printf("Node is running at IP address: %s\n", tcpAddr.String())
+	log.Printf("Node is running at IP address: %s\n", tcpAddr.String())
 	go server.Accept(inbound)
 
 	/* Joining at the port 0.0.0.0:1111 */
@@ -219,10 +219,10 @@ func (n *Node) stabilise() {
 	reply := n.CallRPC(getPredecessorMsg, string(n.successor))
 	succPred := reply.TargetIP // x == my successor's predecessor
 	if succPred.isNil() {
-		fmt.Println("IS NIL?", succPred)
+		log.Println("IS NIL?", succPred)
 	} else {
 		if succPred.GenerateHash().inBetween(n.ipAddress.GenerateHash(), n.successor.GenerateHash(), false) {
-			fmt.Println("SETTING SUCCESSOR", n.ipAddress, n.successor, succPred)
+			log.Println("SETTING SUCCESSOR", n.ipAddress, n.successor, succPred)
 			n.successor = succPred
 		}
 	}
@@ -236,7 +236,7 @@ func (n *Node) stabilise() {
 
 	reply2 := n.CallRPC(notifyMsg, string(n.successor))
 	if reply2.MsgType == ACK {
-		fmt.Println("Recv ACK for Notify Msg from", n.ipAddress)
+		log.Println("Recv ACK for Notify Msg from", n.ipAddress)
 	}
 }
 
@@ -289,11 +289,11 @@ func (n *Node) Run() {
 		}
 
 		for _, entry := range entries {
-			fmt.Println(entry.ShortURL, "SHORT HASH", HashableString(entry.ShortURL).GenerateHash())
-			fmt.Println(entry.ShortURL, n.ipAddress, "RUN NODE")
+			log.Println(entry.ShortURL, "SHORT HASH", HashableString(entry.ShortURL).GenerateHash())
+			log.Println(entry.ShortURL, n.ipAddress, "RUN NODE")
 			short := HashableString(entry.ShortURL)
 			successor := n.FindSuccessor(short.GenerateHash())
-			fmt.Println(entry.ShortURL, successor, "FOUND SUCCESSOR")
+			log.Println(entry.ShortURL, successor, "FOUND SUCCESSOR")
 		}
 	}
 	// }
@@ -316,7 +316,7 @@ func (node *Node) Notify(nPrime HashableString) {
 func (n *Node) CreateNetwork() {
 	n.predecessor = nilHashableString()
 	n.successor = n.ipAddress // itself
-	fmt.Println("Succesfully Created Network", n)
+	log.Println("Succesfully Created Network", n)
 }
 
 func (n *Node) JoinNetwork(joiningIP HashableString) {
@@ -332,7 +332,7 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 	reply := n.CallRPC(findSuccessorMsg, string(joiningIP))
 	n.successor = reply.TargetIP
 
-	fmt.Println("Succesfully Joined Network", n, reply)
+	log.Println("Succesfully Joined Network", n, reply)
 }
 
 func (n *Node) FindSuccessor(targetID Hash) HashableString {
@@ -359,7 +359,8 @@ func (n *Node) FindSuccessor(targetID Hash) HashableString {
 
 	reply := n.CallRPC(findSuccMsg, string(otherNodeIP))
 	if reply.TargetIP.isNil() {
-		panic(fmt.Sprintf("%+v\n", reply))
+		// panic(log.Printf("%+v\n", reply))
+		log.Panicln(reply)
 	}
 	return reply.TargetIP
 }
@@ -383,7 +384,7 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 		defer n.mu.Unlock()
 		n.mu.Lock()
 		n.UrlMap[entry.ShortURL] = entry.LongURL
-		fmt.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
+		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
 		return n.ipAddress, nil
 	} else {
 		storeMsg := RMsg{
@@ -392,7 +393,7 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 			RecieverIP: targetNodeIP,
 			StoreEntry: entry,
 		}
-		fmt.Printf("Sending STORE_URL message to Node %s\n", targetNodeIP)
+		log.Printf("Sending STORE_URL message to Node %s\n", targetNodeIP)
 		reply := n.CallRPC(storeMsg, string(targetNodeIP))
 		if reply.MsgType == ACK {
 			return reply.TargetIP, nil
@@ -416,7 +417,7 @@ func (n *Node) RetrieveURL(ShortURL ShortURL) (LongURL, bool) {
 		reply := n.CallRPC(retrieveMsg, string(targetNodeIP))
 
 		LongURL := reply.RetrieveEntry.LongURL
-		fmt.Println("LONG URL RETRIEVED", LongURL)
+		log.Println("LONG URL RETRIEVED", LongURL)
 		if !LongURL.isNil() {
 			return LongURL, true
 		} else {
