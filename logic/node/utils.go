@@ -28,6 +28,7 @@ const (
 	RETRIEVE_URL           = "retrieve_url"           // Used to retrieve a url from the node.
 	CLIENT_STORE_URL       = "client_store_url"       // Client tells node to store a single short/long URL pair
 	CLIENT_RETRIEVE_URL    = "client_retrieve_url"    // Client tells node to retrieve a single short/long URL pair
+	SEND_REPLICA_DATA      = "send_replica_data"      // used to send node data to successors
 )
 
 type RMsg struct {
@@ -40,6 +41,7 @@ type RMsg struct {
 	RetrieveEntry Entry          // for passing the retrieved longURL for a RetrieveURL request
 	HopCount      int            // For succList
 	SuccList      []HashableString
+	ReplicaData   map[ShortURL]LongURL
 }
 
 type Node struct {

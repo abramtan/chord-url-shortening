@@ -83,6 +83,10 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		node.appendSuccList(msg.HopCount, msg.SuccList)
 	case GET_SUCCESSOR_LIST:
 		reply.SuccList = node.SuccList
+	case SEND_REPLICA_DATA:
+		log.Println("Recieved Node Data")
+		go node.StoreReplica(msg.ReplicaData)
+		reply.MsgType = ACK
 	case EMPTY:
 		panic("ERROR, EMPTY MESSAGE")
 	}
@@ -154,7 +158,21 @@ func (n *Node) MaintainSuccList() {
 	successorSuccList := reply.SuccList
 	n.mu.Lock()
 	n.SuccList = append([]HashableString{n.successor}, successorSuccList[:len(successorSuccList)-1]...) // exclude last element
+	currMap := n.SuccList
+	replicaData := n.UrlMap
 	n.mu.Unlock()
+
+	// after maintain, use SUCCLIST to send updated ver of own data
+	for _, succIP := range currMap {
+		sendSuccData := RMsg{
+			MsgType:     SEND_REPLICA_DATA,
+			SenderIP:    n.ipAddress,
+			RecieverIP:  succIP,
+			ReplicaData: replicaData,
+		}
+
+		n.CallRPC(sendSuccData, string(succIP))
+	}
 }
 
 func InitNode(nodeAr *[]*Node) *Node {
@@ -297,6 +315,14 @@ func (n *Node) Run() {
 		}
 	}
 	// }
+}
+
+func (node *Node) StoreReplica(incomingData map[ShortURL]LongURL) {
+	for short, long := range incomingData {
+		node.mu.Lock()
+		node.UrlMap[short] = long
+		node.mu.Unlock()
+	}
 }
 
 func (node *Node) Notify(nPrime HashableString) {

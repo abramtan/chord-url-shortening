@@ -50,6 +50,31 @@ func main() {
 		log.Println("URL not found")
 	}
 
+	// store an array of long urls
+	longUrlAr := []string{"www.hello.com", "www.capstone.com", "www.rubbish.com", "www.trouble.com", "www.trouble.com?query=70", "www.distributedsystems.com", "www.golang.com", "www.crying.com"}
+	shortUrlAr := make([]string, 0)
+
+	for _, val := range longUrlAr {
+		shortVal := string(clientNode.GenerateShortURL(node.LongURL(val)))
+		finalIP := clientNode.ClientSendStoreURL(val, shortVal, nodeAr)
+		shortUrlAr = append(shortUrlAr, shortVal)
+		log.Println("Reached Final IP", finalIP, "for val", val)
+
+	}
+
+	time.Sleep(5 * time.Second)
+
+	for _, short := range shortUrlAr {
+		retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr)
+
+		log.Println("retrieve entry", retrShort, "found", shortFound)
+		if found {
+			log.Printf("URL Retrieved: %s -> %s\n", string(retrShort.ShortURL), retrShort.LongURL)
+		} else {
+			log.Println("URL not found")
+		}
+	}
+
 	time.Sleep(5 * time.Second)
 
 	log.SetOutput(io.Discard)
