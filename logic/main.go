@@ -24,31 +24,31 @@ func main() {
 
 	log.Print("testing for short and long url storing and generation")
 
-	// // testing URL Shortening and Retrieval
-	// clientNode := node.InitClient()
+	// testing URL Shortening and Retrieval
+	clientNode := node.InitClient()
 
-	// // TODO : Convert this to a terminal string they can type into?
+	// TODO : Convert this to a terminal string they can type into?
 
-	// longURL := "http://example.com/long4-trial"
-	// shortURL := string(clientNode.GenerateShortURL(node.LongURL(longURL)))
-	// finalIP := clientNode.ClientSendStoreURL(longURL, shortURL, nodeAr)
-	// log.Println("Reached Final IP", finalIP)
+	longURL := "http://example.com/long4-trial"
+	shortURL := string(clientNode.GenerateShortURL(node.LongURL(longURL)))
+	finalIP := clientNode.ClientSendStoreURL(longURL, shortURL, nodeAr)
+	log.Println("Reached Final IP", finalIP)
 
-	// time.Sleep(1000)
-	// currNode := node.InitNode(&nodeAr)
-	// go currNode.Maintain()  // fix_fingers, stabilise, check_pred
-	// currNode.InitSuccList() // TODO: should this be here?
+	time.Sleep(1000)
+	currNode := node.InitNode(&nodeAr)
+	go currNode.Maintain()  // fix_fingers, stabilise, check_pred
+	currNode.InitSuccList() // TODO: should this be here?
 
-	// time.Sleep(1 * time.Second)
+	time.Sleep(1 * time.Second)
 
-	// retrievedEntry, found := clientNode.ClientRetrieveURL(shortURL, nodeAr)
+	retrievedEntry, found := clientNode.ClientRetrieveURL(shortURL, nodeAr)
 
-	// log.Println("retrieve entry", retrievedEntry, "found", found)
-	// if found {
-	// 	log.Printf("URL Retrieved: %s -> %s\n", string(retrievedEntry.ShortURL), retrievedEntry.LongURL)
-	// } else {
-	// 	log.Println("URL not found")
-	// }
+	log.Println("retrieve entry", retrievedEntry, "found", found)
+	if found {
+		log.Printf("URL Retrieved: %s -> %s\n", string(retrievedEntry.ShortURL), retrievedEntry.LongURL)
+	} else {
+		log.Println("URL not found")
+	}
 
 	time.Sleep(5 * time.Second)
 
