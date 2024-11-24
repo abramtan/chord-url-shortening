@@ -88,9 +88,9 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		log.Println("Recieved Node Data")
 		node.StoreReplica(msg.ReplicaData)
 		reply.MsgType = ACK
-	case TRANSFERKEYS:
-		log.Print("Received TRANSFERKEYS message")
-		node.receiveTransferKeys(msg.Keys)
+	case NOTIFY_SUCCESSOR_LEAVING:
+		log.Print("Received voluntarily leaving message (successor)")
+		node.voluntaryLeavingSuccessor(msg.Keys, msg.NewPredecessor)
 	case EMPTY:
 		panic("ERROR, EMPTY MESSAGE")
 	}
@@ -302,13 +302,14 @@ func (n *Node) Maintain() {
 // Node voluntary leaving
 func (n *Node) Leave() {
 	// Transfer keys to successor
-	transferKeysMsg := RMsg{
-		MsgType:    TRANSFERKEYS,
-		SenderIP:   n.ipAddress,
-		RecieverIP: n.successor,
-		Keys:       n.UrlMap,
+	voluntaryLeaveSuccessorMsg := RMsg{
+		MsgType:        NOTIFY_SUCCESSOR_LEAVING,
+		SenderIP:       n.ipAddress,
+		RecieverIP:     n.successor,
+		Keys:           n.UrlMap,
+		NewPredecessor: n.predecessor,
 	}
-	reply := n.CallRPC(transferKeysMsg, string(n.successor)) // RPC call to successor
+	reply := n.CallRPC(voluntaryLeaveSuccessorMsg, string(n.successor)) // RPC call to successor
 	if reply.MsgType == EMPTY {
 		fmt.Printf("Failed to transfer keys to successor %s\n", n.successor)
 	} else {
@@ -317,14 +318,15 @@ func (n *Node) Leave() {
 }
 
 // Successor receives keys to be transferred to it
-func (n *Node) receiveTransferKeys(keys map[ShortURL]LongURL) {
-	fmt.Printf("Keys received, original map is %s\n", n.UrlMap)
+func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]LongURL, newPredecessor HashableString) {
+	fmt.Printf("Message received, original map is %s, predecessor is %s\n", n.UrlMap, n.predecessor)
 	n.mu.Lock()
 	for k, v := range keys {
 		n.UrlMap[k] = v
 	}
+	n.predecessor = newPredecessor
 	n.mu.Unlock()
-	fmt.Printf("Keys received, new map is %s\n", n.UrlMap)
+	fmt.Printf("Update complete, new map is %s, new predecessor is %s\n", n.UrlMap, n.predecessor)
 }
 
 // func (n *Node) Run() {
