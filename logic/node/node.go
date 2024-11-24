@@ -303,22 +303,28 @@ func (n *Node) Maintain() {
 func (n *Node) Leave() {
 	// Transfer keys to successor
 	transferKeysMsg := RMsg{
-		MsgType: TRANSFERKEYS,
-		SenderIP: n.ipAddress,
+		MsgType:    TRANSFERKEYS,
+		SenderIP:   n.ipAddress,
 		RecieverIP: n.successor,
-		Keys: n.UrlMap,
+		Keys:       n.UrlMap,
 	}
 	reply := n.CallRPC(transferKeysMsg, string(n.successor)) // RPC call to successor
 	if reply.MsgType == EMPTY {
-		fmt.Println("Failed to transfer keys to successor %s", n.successor)
+		fmt.Printf("Failed to transfer keys to successor %s\n", n.successor)
+	} else {
+		fmt.Printf("Successfully transferred keys to successor %s\n", n.successor)
 	}
-	fmt.Println("Successfully transferred keys to successor %s", n.successor)
-
 }
 
 // Successor receives keys to be transferred to it
 func (n *Node) receiveTransferKeys(keys map[ShortURL]LongURL) {
-	fmt.Println(keys, "KEY RECEIVE", n.UrlMap)
+	fmt.Printf("Keys received, original map is %s\n", n.UrlMap)
+	n.mu.Lock()
+	for k, v := range keys {
+		n.UrlMap[k] = v
+	}
+	n.mu.Unlock()
+	fmt.Printf("Keys received, new map is %s\n", n.UrlMap)
 }
 
 // func (n *Node) Run() {
