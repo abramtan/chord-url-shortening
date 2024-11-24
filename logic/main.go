@@ -83,6 +83,12 @@ func main() {
 		fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
 	}
 
+	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	leavenode := nodeAr[len(nodeAr) - 2]
+	fmt.Printf("%+v -- LEAVING: %+v\n", leavenode, leavenode.GetIPAddress().GenerateHash())
+
+	leavenode.Leave()
+
 	// // force program to wait
 	// longURLAr := make([]node.LongURL, 0)
 

@@ -2,6 +2,7 @@ package node
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"net"
@@ -87,6 +88,9 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		log.Println("Recieved Node Data")
 		node.StoreReplica(msg.ReplicaData)
 		reply.MsgType = ACK
+	case TRANSFERKEYS:
+		log.Print("Received TRANSFERKEYS message")
+		node.receiveTransferKeys(msg.Keys)
 	case EMPTY:
 		panic("ERROR, EMPTY MESSAGE")
 	}
@@ -295,27 +299,49 @@ func (n *Node) Maintain() {
 	}
 }
 
-func (n *Node) Run() {
-	// for {
-	if n.ipAddress == "0.0.0.0:10007" {
-		// act as if it gets url
-		// put in url and retrieve it
-		entries := []Entry{
-			{ShortURL: "short1", LongURL: "http://example.com/long1"},
-			{ShortURL: "short2", LongURL: "http://example.com/long2"},
-			{ShortURL: "short3", LongURL: "http://example.com/long3"},
-		}
-
-		for _, entry := range entries {
-			log.Println(entry.ShortURL, "SHORT HASH", HashableString(entry.ShortURL).GenerateHash())
-			log.Println(entry.ShortURL, n.ipAddress, "RUN NODE")
-			short := HashableString(entry.ShortURL)
-			successor := n.FindSuccessor(short.GenerateHash())
-			log.Println(entry.ShortURL, successor, "FOUND SUCCESSOR")
-		}
+// Node voluntary leaving
+func (n *Node) Leave() {
+	// Transfer keys to successor
+	transferKeysMsg := RMsg{
+		MsgType: TRANSFERKEYS,
+		SenderIP: n.ipAddress,
+		RecieverIP: n.successor,
+		Keys: n.UrlMap,
 	}
-	// }
+	reply := n.CallRPC(transferKeysMsg, string(n.successor)) // RPC call to successor
+	if reply.MsgType == EMPTY {
+		fmt.Println("Failed to transfer keys to successor %s", n.successor)
+	}
+	fmt.Println("Successfully transferred keys to successor %s", n.successor)
+
 }
+
+// Successor receives keys to be transferred to it
+func (n *Node) receiveTransferKeys(keys map[ShortURL]LongURL) {
+	fmt.Println(keys, "KEY RECEIVE", n.UrlMap)
+}
+
+// func (n *Node) Run() {
+// 	// for {
+// 	if n.ipAddress == "0.0.0.0:10007" {
+// 		// act as if it gets url
+// 		// put in url and retrieve it
+// 		entries := []Entry{
+// 			{ShortURL: "short1", LongURL: "http://example.com/long1"},
+// 			{ShortURL: "short2", LongURL: "http://example.com/long2"},
+// 			{ShortURL: "short3", LongURL: "http://example.com/long3"},
+// 		}
+
+// 		for _, entry := range entries {
+// 			log.Println(entry.ShortURL, "SHORT HASH", HashableString(entry.ShortURL).GenerateHash())
+// 			log.Println(entry.ShortURL, n.ipAddress, "RUN NODE")
+// 			short := HashableString(entry.ShortURL)
+// 			successor := n.FindSuccessor(short.GenerateHash())
+// 			log.Println(entry.ShortURL, successor, "FOUND SUCCESSOR")
+// 		}
+// 	}
+// 	// }
+// }
 
 func (node *Node) StoreReplica(incomingData map[ShortURL]LongURL) {
 
