@@ -84,12 +84,13 @@ func main() {
 	}
 
 	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-	leavenode := nodeAr[len(nodeAr) - 2]
+	leavenode := nodeAr[len(nodeAr)-2]
 	fmt.Printf("%+v -- LEAVING: %+v\n", leavenode, leavenode.GetIPAddress().GenerateHash())
 
 	leavenode.Leave()
+	nodeAr = append(nodeAr[:len(nodeAr)-2], nodeAr[len(nodeAr)-1:]...)
 
-	fmt.Println("NODE LEFT")
+	fmt.Printf("NODE %s LEFT\n", leavenode.GetIPAddress())
 	for _, node := range nodeAr {
 		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 		fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
