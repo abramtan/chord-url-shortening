@@ -85,7 +85,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		reply.SuccList = node.SuccList
 	case SEND_REPLICA_DATA:
 		log.Println("Recieved Node Data")
-		go node.StoreReplica(msg.ReplicaData)
+		node.StoreReplica(msg.ReplicaData)
 		reply.MsgType = ACK
 	case EMPTY:
 		panic("ERROR, EMPTY MESSAGE")
@@ -318,11 +318,15 @@ func (n *Node) Run() {
 }
 
 func (node *Node) StoreReplica(incomingData map[ShortURL]LongURL) {
-	for short, long := range incomingData {
-		node.mu.Lock()
-		node.UrlMap[short] = long
-		node.mu.Unlock()
-	}
+
+	// if incomingData != nil {
+	// 	node.mu.Lock()
+	// 	for short, long := range incomingData {
+	// 		node.UrlMap[short] = long
+	// 	}
+	// 	node.mu.Unlock()
+	// }
+	log.Println("ADDING REPLICA DATA")
 }
 
 func (node *Node) Notify(nPrime HashableString) {
