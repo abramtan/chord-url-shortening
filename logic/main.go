@@ -80,7 +80,12 @@ func main() {
 	log.SetOutput(io.Discard)
 	for _, node := range nodeAr {
 		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-		fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
+		// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
+		fmt.Println("IP Address: ", node.GetIPAddress())
+		fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
+		fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
+		fmt.Println("Successor List:", node.SuccList)
+		fmt.Println("URLMap:", node.UrlMap)
 	}
 
 	// // force program to wait

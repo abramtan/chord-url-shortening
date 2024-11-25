@@ -33,10 +33,9 @@ const (
 )
 
 type URLData struct {
-    LongURL   LongURL
-    Timestamp time.Time
+	LongURL   LongURL
+	Timestamp time.Time
 }
-
 
 type RMsg struct {
 	MsgType       string
@@ -48,8 +47,8 @@ type RMsg struct {
 	RetrieveEntry Entry          // for passing the retrieved longURL for a RetrieveURL request
 	HopCount      int            // For succList
 	SuccList      []HashableString
-	ReplicaData   map[ShortURL]URLData	
-	Timestamp	  time.Time
+	ReplicaData   map[ShortURL]URLData
+	Timestamp     time.Time
 }
 
 type Node struct {
@@ -59,7 +58,7 @@ type Node struct {
 	fingerTable   []HashableString
 	successor     HashableString
 	predecessor   HashableString
-	UrlMap        map[ShortURL]URLData
+	UrlMap        map[HashableString]map[ShortURL]URLData
 	SuccList      []HashableString
 }
 
@@ -87,8 +86,8 @@ const (
 )
 
 type Entry struct {
-	ShortURL ShortURL
-	LongURL  LongURL
+	ShortURL  ShortURL
+	LongURL   LongURL
 	Timestamp time.Time
 }
 
@@ -136,8 +135,28 @@ func (n *Node) GetIPAddress() HashableString {
 	return n.ipAddress
 }
 
+func (n *Node) GetFixFingerCount() int {
+	return n.fixFingerNext
+}
+
 func (n *Node) GetFingerTable() *[]HashableString {
 	return &n.fingerTable
+}
+
+func (n *Node) GetSuccessor() HashableString {
+	return n.successor
+}
+
+func (n *Node) GetPredecessor() HashableString {
+	return n.predecessor
+}
+
+func (n *Node) GetURLMap() map[HashableString]map[ShortURL]URLData {
+	return n.UrlMap
+}
+
+func (n *Node) GetSuccList() []HashableString {
+	return n.SuccList
 }
 
 // UTILITY FUNCTIONS - HashableString
