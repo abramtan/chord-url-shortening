@@ -85,7 +85,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		reply.SuccList = node.SuccList
 	case SEND_REPLICA_DATA:
 		log.Println("Recieved Node Data")
-		go node.StoreReplica(msg.ReplicaData)
+		node.StoreReplica(msg.ReplicaData)
 		reply.MsgType = ACK
 	case EMPTY:
 		panic("ERROR, EMPTY MESSAGE")
