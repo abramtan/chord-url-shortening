@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/rpc"
 	"sync"
+	"time"
 )
 
 // Message types.
@@ -31,6 +32,12 @@ const (
 	SEND_REPLICA_DATA      = "send_replica_data"      // used to send node data to successors
 )
 
+type URLData struct {
+    LongURL   LongURL
+    Timestamp time.Time
+}
+
+
 type RMsg struct {
 	MsgType       string
 	SenderIP      HashableString // Sender IP
@@ -41,7 +48,8 @@ type RMsg struct {
 	RetrieveEntry Entry          // for passing the retrieved longURL for a RetrieveURL request
 	HopCount      int            // For succList
 	SuccList      []HashableString
-	ReplicaData   map[ShortURL]LongURL
+	ReplicaData   map[ShortURL]URLData	
+	Timestamp	  time.Time
 }
 
 type Node struct {
@@ -51,7 +59,7 @@ type Node struct {
 	fingerTable   []HashableString
 	successor     HashableString
 	predecessor   HashableString
-	UrlMap        map[ShortURL]LongURL
+	UrlMap        map[ShortURL]URLData
 	SuccList      []HashableString
 }
 
@@ -81,6 +89,7 @@ const (
 type Entry struct {
 	ShortURL ShortURL
 	LongURL  LongURL
+	Timestamp time.Time
 }
 
 // UTILITY FUNCTIONS - Node
@@ -88,25 +97,26 @@ type Entry struct {
 /*
 Node utility function to call RPC given a request message, and a destination IP address.
 */
-func (node *Node) CallRPC(msg RMsg, IP string) RMsg {
+func (node *Node) CallRPC(msg RMsg, IP string) (RMsg, error) {
 	log.Printf("Nodeid: %v IP: %s is sending message %v to IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
+
 	clnt, err := rpc.Dial("tcp", IP)
-	reply := RMsg{}
 	if err != nil {
-		// log.Printf(msg.msgType)
-		log.Printf("Nodeid: %v IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
-		reply.MsgType = EMPTY
-		return reply
+		log.Printf("Failed to connect to %s: %v\n", IP, err)
+		// Return an empty RMsg and the error
+		return RMsg{}, fmt.Errorf("failed to connect to %s: %w", IP, err)
 	}
+
+	reply := RMsg{}
 	err = clnt.Call("Node.HandleIncomingMessage", &msg, &reply)
 	if err != nil {
-		// log.Println("Error calling RPC", err)
-		log.Printf("Nodeid: %s IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
-		reply.MsgType = EMPTY
-		return reply
+		log.Printf("RPC call to %s failed: %v\n", IP, err)
+		// Return an empty RMsg and the error
+		return RMsg{}, fmt.Errorf("RPC call to %s failed: %w", IP, err)
 	}
-	log.Printf("Received reply from %s\n", IP)
-	return reply
+
+	log.Printf("Nodeid: %s IP: %s received reply %v from IP: %s\n", msg.SenderIP, msg.RecieverIP, msg.MsgType, IP)
+	return reply, nil
 }
 
 func (n *Node) GenerateShortURL(LongURL LongURL) ShortURL {
@@ -225,7 +235,10 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 
 	log.Printf("Client sending CLIENT_STORE_URL message to Node %s\n", callNode.GetIPAddress())
 	// for checking purposes
-	reply := n.CallRPC(clientStoreMsg, string(callNode.GetIPAddress()))
+	reply, err := n.CallRPC(clientStoreMsg, string(callNode.GetIPAddress()))
+	if err != nil {
+		log.Println("Error in ClientSendStoreURL", err)
+	}
 	log.Println("NODE :", reply.TargetIP, "successfully stored shortURL.")
 	return reply.TargetIP
 }
@@ -247,6 +260,9 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node) (Entry, bool) 
 
 	log.Printf("Client sending CLIENT_RETRIEVE_URL message to Node %s\n", callNode.GetIPAddress())
 	// for checking purposes
-	reply := n.CallRPC(clientRetrieveMsg, string(callNode.GetIPAddress()))
+	reply, err := n.CallRPC(clientRetrieveMsg, string(callNode.GetIPAddress()))
+	if err != nil {
+		log.Println("Error in ClientRetrieveURL", err)
+	}
 	return reply.RetrieveEntry, !reply.RetrieveEntry.LongURL.isNil()
 }

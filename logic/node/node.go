@@ -52,7 +52,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		entry := msg.StoreEntry
 		defer node.mu.Unlock()
 		node.mu.Lock()
-		node.UrlMap[entry.ShortURL] = entry.LongURL
+		node.UrlMap[entry.ShortURL] = URLData{LongURL: entry.LongURL}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
 		// send appropiate reply back to the initial node that the client contacted
 		reply.TargetIP = node.ipAddress
@@ -60,10 +60,10 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case RETRIEVE_URL:
 		log.Println("Received RETRIEVE_URL message")
 		ShortURL := msg.RetrieveEntry.ShortURL
-		LongURL, found := node.UrlMap[ShortURL]
-		log.Println("AFTER RECV, RETRIEVED LONGURL", LongURL)
+		URLDataFound, found := node.UrlMap[ShortURL]
+		log.Println("AFTER RECV, RETRIEVED LONGURL", URLDataFound)
 		if found {
-			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: LongURL}
+			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: URLDataFound.LongURL}
 		} else {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: nilLongURL()}
 		}
@@ -106,8 +106,8 @@ func (n *Node) InitSuccList() ([]HashableString, error) {
 		SuccList:   make([]HashableString, 0),
 	}
 
-	reply := n.CallRPC(initSuccessorListMsg, string(n.successor))
-	if len(reply.SuccList) == 0 {
+	reply, err := n.CallRPC(initSuccessorListMsg, string(n.successor))
+	if len(reply.SuccList) == 0 || err != nil {
 		return []HashableString{}, errors.New("successor list empty")
 	}
 	n.mu.Lock()
@@ -137,41 +137,61 @@ func (n *Node) appendSuccList(hopCount int, succList []HashableString) ([]Hashab
 			SuccList:   succList,
 		}
 
-		reply := n.CallRPC(forwardSuccessorListMsg, string(n.successor))
+		reply, err := n.CallRPC(forwardSuccessorListMsg, string(n.successor))
+		if err != nil {
+			return []HashableString{}, err
+		}
 		return reply.SuccList, nil
 	}
 }
 
 func (n *Node) MaintainSuccList() {
-	// ping successor
-	// if active, take successor.succList[:-1] and then prepend n.successor ==> make this the succList
-
-	// step 1 : check first successor in successor list
-	// successor := n.successor
 	getSuccList := RMsg{
 		MsgType:    GET_SUCCESSOR_LIST,
 		SenderIP:   n.ipAddress,
 		RecieverIP: n.successor,
 	}
 
-	reply := n.CallRPC(getSuccList, string(n.successor))
+	reply, err := n.CallRPC(getSuccList, string(n.successor))
+	if err != nil || len(reply.SuccList) == 0 {
+		log.Printf("WARN: Successor %s is unresponsive or returned an empty successor list.\n", n.successor)
+
+		n.mu.Lock()
+		if len(n.SuccList) > 1 {
+			n.successor = n.SuccList[1] 
+			log.Printf("INFO: Promoting %s to primary successor.\n", n.successor)
+		} else {
+			log.Println("ERROR: No valid successors available.")
+			n.mu.Unlock()
+			return
+		}
+		n.mu.Unlock()
+		return
+	}
+
 	successorSuccList := reply.SuccList
 	n.mu.Lock()
-	n.SuccList = append([]HashableString{n.successor}, successorSuccList[:len(successorSuccList)-1]...) // exclude last element
+	n.SuccList = append([]HashableString{n.successor}, successorSuccList[:len(successorSuccList)-1]...) // Exclude the last element
 	currMap := n.SuccList
 	replicaData := n.UrlMap
 	n.mu.Unlock()
 
-	// after maintain, use SUCCLIST to send updated ver of own data
 	for _, succIP := range currMap {
 		sendSuccData := RMsg{
 			MsgType:     SEND_REPLICA_DATA,
 			SenderIP:    n.ipAddress,
 			RecieverIP:  succIP,
 			ReplicaData: replicaData,
+			Timestamp:   time.Now(),
 		}
+		log.Printf("INFO: sendSuccData: ", sendSuccData)
 
-		n.CallRPC(sendSuccData, string(succIP))
+		// Ensure replica data is sent successfully
+		reply, err := n.CallRPC(sendSuccData, string(succIP))
+		if err != nil {
+			log.Printf("WARN: Failed to send replica data to %s: %v\n", succIP, err)
+			log.Printf(reply.MsgType)
+		}
 	}
 }
 
@@ -190,7 +210,7 @@ func InitNode(nodeAr *[]*Node) *Node {
 		// id:          IPAddress(addr).GenerateHash(M),
 		ipAddress:   HashableString(addr),
 		fingerTable: make([]HashableString, M), // this is the length of the finger table 2**M
-		UrlMap:      make(map[ShortURL]LongURL),
+		UrlMap:      make(map[ShortURL]URLData),
 		SuccList:    make([]HashableString, REPLICAS),
 	}
 
@@ -234,7 +254,11 @@ func (n *Node) stabilise() {
 		RecieverIP: n.successor,
 	}
 
-	reply := n.CallRPC(getPredecessorMsg, string(n.successor))
+	reply, err := n.CallRPC(getPredecessorMsg, string(n.successor))
+	if err != nil {
+		log.Println("ERROR: Could not get predecessor", err)
+		return
+	}
 	succPred := reply.TargetIP // x == my successor's predecessor
 	if succPred.isNil() {
 		log.Println("IS NIL?", succPred)
@@ -252,7 +276,7 @@ func (n *Node) stabilise() {
 		RecieverIP: n.successor,
 	}
 
-	reply2 := n.CallRPC(notifyMsg, string(n.successor))
+	reply2, err := n.CallRPC(notifyMsg, string(n.successor))
 	if reply2.MsgType == ACK {
 		log.Println("Recv ACK for Notify Msg from", n.ipAddress)
 	}
@@ -278,9 +302,9 @@ func (n *Node) checkPredecessor() {
 	}
 
 	// RPC call to predecessor
-	reply := n.CallRPC(pingMsg, string(n.predecessor))
+	reply, err := n.CallRPC(pingMsg, string(n.predecessor))
 	// No response from predecessor, set predecessor to nil
-	if reply.MsgType == EMPTY {
+	if reply.MsgType == EMPTY || err != nil {
 		n.predecessor = nilHashableString()
 	}
 }
@@ -317,10 +341,15 @@ func (n *Node) Run() {
 	// }
 }
 
-func (node *Node) StoreReplica(incomingData map[ShortURL]LongURL) {
-	for short, long := range incomingData {
+func (node *Node) StoreReplica(incomingData map[ShortURL]URLData) {
+	log.Printf("storeReplica being called")
+	timestamp := time.Now()
+	for short, URLDataFound := range incomingData {
 		node.mu.Lock()
-		node.UrlMap[short] = long
+		node.UrlMap[short] = URLData{
+			LongURL:   URLDataFound.LongURL,
+			Timestamp: timestamp,
+		}
 		node.mu.Unlock()
 	}
 }
@@ -355,7 +384,11 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 		TargetHash: n.ipAddress.GenerateHash(),
 	}
 
-	reply := n.CallRPC(findSuccessorMsg, string(joiningIP))
+	reply, err := n.CallRPC(findSuccessorMsg, string(joiningIP))
+	if err != nil {
+		log.Println("ERROR: Could not find successor", err)
+		return
+	}
 	n.successor = reply.TargetIP
 
 	log.Println("Succesfully Joined Network", n, reply)
@@ -383,8 +416,8 @@ func (n *Node) FindSuccessor(targetID Hash) HashableString {
 		TargetHash: targetID,
 	}
 
-	reply := n.CallRPC(findSuccMsg, string(otherNodeIP))
-	if reply.TargetIP.isNil() {
+	reply, err := n.CallRPC(findSuccMsg, string(otherNodeIP))
+	if reply.TargetIP.isNil() || err != nil {
 		// panic(log.Printf("%+v\n", reply))
 		log.Panicln(reply)
 	}
@@ -409,7 +442,7 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 	if targetNodeIP == n.ipAddress {
 		defer n.mu.Unlock()
 		n.mu.Lock()
-		n.UrlMap[entry.ShortURL] = entry.LongURL
+		n.UrlMap[entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now()}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
 		return n.ipAddress, nil
 	} else {
@@ -420,7 +453,10 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 			StoreEntry: entry,
 		}
 		log.Printf("Sending STORE_URL message to Node %s\n", targetNodeIP)
-		reply := n.CallRPC(storeMsg, string(targetNodeIP))
+		reply, err := n.CallRPC(storeMsg, string(targetNodeIP))
+		if err != nil {
+			return nilHashableString(), err
+		}
 		if reply.MsgType == ACK {
 			return reply.TargetIP, nil
 		}
@@ -429,25 +465,92 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 }
 
 func (n *Node) RetrieveURL(ShortURL ShortURL) (LongURL, bool) {
-	targetNodeIP := n.FindSuccessor(HashableString(ShortURL).GenerateHash())
-	if targetNodeIP == n.ipAddress {
-		LongURL, found := n.UrlMap[ShortURL]
-		return LongURL, found
-	} else {
-		retrieveMsg := RMsg{
-			MsgType:       RETRIEVE_URL,
-			SenderIP:      n.ipAddress,
-			RecieverIP:    targetNodeIP,
-			RetrieveEntry: Entry{ShortURL: ShortURL, LongURL: nilLongURL()},
-		}
-		reply := n.CallRPC(retrieveMsg, string(targetNodeIP))
+	log.Printf("Inside RetrieveURL for ShortURL: %s", ShortURL)
 
-		LongURL := reply.RetrieveEntry.LongURL
-		log.Println("LONG URL RETRIEVED", LongURL)
-		if !LongURL.isNil() {
-			return LongURL, true
-		} else {
-			return nilLongURL(), false
+	// Find the primary node responsible for the ShortURL
+	targetNodeIP := n.FindSuccessor(HashableString(ShortURL).GenerateHash())
+
+	// Attempt retrieval from the primary node
+	if targetNodeIP == n.ipAddress {
+		if URLDataFound, found := n.UrlMap[ShortURL]; found {
+			return URLDataFound.LongURL, true
+		}
+		return nilLongURL(), false
+	}
+
+	localEntry, exists := n.UrlMap[ShortURL]
+	localTimestamp := time.Time{}
+	if exists {
+		localTimestamp = localEntry.Timestamp
+	}
+
+	retrieveMsg := RMsg{
+		MsgType:       RETRIEVE_URL,
+		SenderIP:      n.ipAddress,
+		RecieverIP:    targetNodeIP,
+		RetrieveEntry: Entry{ShortURL: ShortURL, LongURL: nilLongURL(), Timestamp: localTimestamp},
+	}
+	reply, err := n.CallRPC(retrieveMsg, string(targetNodeIP))
+	if err == nil {
+		retrievedURL := reply.RetrieveEntry.LongURL
+		retrievedTimestamp := reply.RetrieveEntry.Timestamp
+		log.Printf("Retrieved URL: %s with Timestamp: %v", retrievedURL, retrievedTimestamp)
+
+		if !retrievedURL.isNil() {
+			// Conflict resolution
+			if !exists || retrievedTimestamp.After(localEntry.Timestamp) {
+				n.UrlMap[ShortURL] = URLData{
+					LongURL:   retrievedURL,
+					Timestamp: retrievedTimestamp,
+				}
+				log.Printf("Conflict resolved: Updated local data for %s with newer data.", ShortURL)
+			}
+			return retrievedURL, true
+		}
+		return nilLongURL(), false
+	}
+
+	// Primary node failed; query replicas
+	log.Printf("Primary node failed. Querying replicas for %s", ShortURL)
+
+	// Retrieve the successor list via RPC
+	succListMsg := RMsg{
+		MsgType:    GET_SUCCESSOR_LIST,
+		SenderIP:   n.ipAddress,
+		RecieverIP: targetNodeIP,
+	}
+	succListReply, err := n.CallRPC(succListMsg, string(targetNodeIP))
+	if err != nil {
+		log.Printf("Failed to get successor list from %s: %v", targetNodeIP, err)
+		return nilLongURL(), false
+	}
+	for _, successorIP := range succListReply.SuccList {
+		if successorIP == targetNodeIP {
+			continue 
+		}
+		retrieveMsg.RecieverIP = successorIP
+		reply, err := n.CallRPC(retrieveMsg, string(successorIP))
+		if err != nil {
+			log.Printf("Replica node %s failed: %v", successorIP, err)
+			continue 
+		}
+
+		retrievedURL := reply.RetrieveEntry.LongURL
+		retrievedTimestamp := reply.RetrieveEntry.Timestamp
+		if !retrievedURL.isNil() {
+			// Conflict resolution
+			if !exists || retrievedTimestamp.After(localEntry.Timestamp) {
+				n.UrlMap[ShortURL] = URLData{
+					LongURL:   retrievedURL,
+					Timestamp: retrievedTimestamp,
+				}
+				log.Printf("Conflict resolved: Updated local data for %s with newer data from replica.", ShortURL)
+			}
+			return retrievedURL, true
 		}
 	}
+
+	// If no replica has the data, return failure
+	log.Printf("Failed to retrieve %s from all replicas.", ShortURL)
+	return nilLongURL(), false
 }
