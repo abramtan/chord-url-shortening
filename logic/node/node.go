@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"net/rpc"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -52,7 +53,13 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		entry := msg.StoreEntry
 		defer node.mu.Unlock()
 		node.mu.Lock()
-		node.UrlMap[entry.ShortURL] = entry.LongURL
+		_, mapFound := node.UrlMap[node.ipAddress]
+		if mapFound {
+			node.UrlMap[node.ipAddress][entry.ShortURL] = entry.LongURL
+		} else {
+			node.UrlMap[node.ipAddress] = make(map[ShortURL]LongURL)
+			node.UrlMap[node.ipAddress][entry.ShortURL] = entry.LongURL
+		}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
 		// send appropiate reply back to the initial node that the client contacted
 		reply.TargetIP = node.ipAddress
@@ -60,7 +67,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case RETRIEVE_URL:
 		log.Println("Received RETRIEVE_URL message")
 		ShortURL := msg.RetrieveEntry.ShortURL
-		LongURL, found := node.UrlMap[ShortURL]
+		LongURL, found := node.UrlMap[node.ipAddress][ShortURL]
 		log.Println("AFTER RECV, RETRIEVED LONGURL", LongURL)
 		if found {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: LongURL}
@@ -85,7 +92,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		reply.SuccList = node.SuccList
 	case SEND_REPLICA_DATA:
 		log.Println("Recieved Node Data")
-		node.StoreReplica(msg.ReplicaData)
+		node.StoreReplica(msg)
 		reply.MsgType = ACK
 	case EMPTY:
 		panic("ERROR, EMPTY MESSAGE")
@@ -159,7 +166,16 @@ func (n *Node) MaintainSuccList() {
 	n.mu.Lock()
 	n.SuccList = append([]HashableString{n.successor}, successorSuccList[:len(successorSuccList)-1]...) // exclude last element
 	currMap := n.SuccList
-	replicaData := n.UrlMap
+	replicaData := n.UrlMap[n.ipAddress]
+
+	// clear n.UrlMap
+	for IP := range n.UrlMap {
+		log.Println(IP, n.SuccList)
+		found := slices.Contains(n.SuccList, IP)
+		if !found { // remove values that aare not in the successor list
+			delete(n.UrlMap, IP)
+		}
+	}
 	n.mu.Unlock()
 
 	// after maintain, use SUCCLIST to send updated ver of own data
@@ -190,7 +206,7 @@ func InitNode(nodeAr *[]*Node) *Node {
 		// id:          IPAddress(addr).GenerateHash(M),
 		ipAddress:   HashableString(addr),
 		fingerTable: make([]HashableString, M), // this is the length of the finger table 2**M
-		UrlMap:      make(map[ShortURL]LongURL),
+		UrlMap:      make(map[HashableString]map[ShortURL]LongURL),
 		SuccList:    make([]HashableString, REPLICAS),
 	}
 
@@ -317,19 +333,34 @@ func (n *Node) Run() {
 	// }
 }
 
-func (node *Node) StoreReplica(incomingData map[ShortURL]LongURL) {
+func (node *Node) StoreReplica(replicaMsg *RMsg) {
+	senderNode := replicaMsg.SenderIP
 
-	// if incomingData != nil {
-	// 	node.mu.Lock()
-	// 	for short, long := range incomingData {
-	// 		node.UrlMap[short] = long
-	// 	}
-	// 	node.mu.Unlock()
-	// }
+	defer node.mu.Unlock()
+	node.mu.Lock()
+
+	replica, replicaFound := node.UrlMap[senderNode]
+	if !replicaFound {
+		node.UrlMap[senderNode] = make(map[ShortURL]LongURL)
+		// node.UrlMap[senderNode] = replicaMsg.ReplicaData
+	}
+
+	if replica == nil {
+		node.UrlMap[senderNode] = make(map[ShortURL]LongURL)
+	}
+
+	log.Println(replica, replicaFound)
+
+	for short, long := range replicaMsg.ReplicaData {
+		node.UrlMap[senderNode][short] = long
+	}
+
 	log.Println("ADDING REPLICA DATA")
 }
 
 func (node *Node) Notify(nPrime HashableString) {
+	defer node.mu.Unlock()
+	node.mu.Lock()
 	if node.predecessor.isNil() {
 		node.predecessor = nPrime
 	}
@@ -413,7 +444,13 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 	if targetNodeIP == n.ipAddress {
 		defer n.mu.Unlock()
 		n.mu.Lock()
-		n.UrlMap[entry.ShortURL] = entry.LongURL
+		_, mapFound := n.UrlMap[n.ipAddress]
+		if mapFound {
+			n.UrlMap[n.ipAddress][entry.ShortURL] = entry.LongURL
+		} else {
+			n.UrlMap[n.ipAddress] = make(map[ShortURL]LongURL)
+			n.UrlMap[n.ipAddress][entry.ShortURL] = entry.LongURL
+		}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
 		return n.ipAddress, nil
 	} else {
@@ -435,7 +472,7 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 func (n *Node) RetrieveURL(ShortURL ShortURL) (LongURL, bool) {
 	targetNodeIP := n.FindSuccessor(HashableString(ShortURL).GenerateHash())
 	if targetNodeIP == n.ipAddress {
-		LongURL, found := n.UrlMap[ShortURL]
+		LongURL, found := n.UrlMap[n.ipAddress][ShortURL]
 		return LongURL, found
 	} else {
 		retrieveMsg := RMsg{

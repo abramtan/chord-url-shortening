@@ -51,7 +51,7 @@ type Node struct {
 	fingerTable   []HashableString
 	successor     HashableString
 	predecessor   HashableString
-	UrlMap        map[ShortURL]LongURL
+	UrlMap        map[HashableString]map[ShortURL]LongURL
 	SuccList      []HashableString
 }
 
@@ -126,8 +126,28 @@ func (n *Node) GetIPAddress() HashableString {
 	return n.ipAddress
 }
 
+func (n *Node) GetFixFingerCount() int {
+	return n.fixFingerNext
+}
+
 func (n *Node) GetFingerTable() *[]HashableString {
 	return &n.fingerTable
+}
+
+func (n *Node) GetSuccessor() HashableString {
+	return n.successor
+}
+
+func (n *Node) GetPredecessor() HashableString {
+	return n.predecessor
+}
+
+func (n *Node) GetURLMap() map[HashableString]map[ShortURL]LongURL {
+	return n.UrlMap
+}
+
+func (n *Node) GetSuccList() []HashableString {
+	return n.SuccList
 }
 
 // UTILITY FUNCTIONS - HashableString
