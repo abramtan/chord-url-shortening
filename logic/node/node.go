@@ -2,6 +2,7 @@ package node
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"net"
@@ -92,6 +93,14 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case SEND_REPLICA_DATA:
 		log.Println("Recieved Node Data")
 		node.StoreReplica(msg)
+		reply.MsgType = ACK
+	case NOTIFY_SUCCESSOR_LEAVING:
+		log.Print("Received voluntarily leaving message (successor)")
+		node.voluntaryLeavingSuccessor(msg.Keys, msg.NewPredecessor)
+		reply.MsgType = ACK
+	case NOTIFY_PREDECESSOR_LEAVING:
+		log.Print("Received voluntarily leaving message (predecessor)")
+		node.voluntaryLeavingPredecessor(msg.SenderIP, msg.LastNode)
 		reply.MsgType = ACK
 	case EMPTY:
 		panic("ERROR, EMPTY MESSAGE")
@@ -326,27 +335,93 @@ func (n *Node) Maintain() {
 	}
 }
 
-func (n *Node) Run() {
-	// for {
-	if n.ipAddress == "0.0.0.0:10007" {
-		// act as if it gets url
-		// put in url and retrieve it
-		entries := []Entry{
-			{ShortURL: "short1", LongURL: "http://example.com/long1"},
-			{ShortURL: "short2", LongURL: "http://example.com/long2"},
-			{ShortURL: "short3", LongURL: "http://example.com/long3"},
-		}
+// Node voluntary leaving
+func (n *Node) Leave() {
+	// Transfer keys to successor and inform successor of its new predecessor
+	voluntaryLeaveSuccessorMsg := RMsg{
+		MsgType:        NOTIFY_SUCCESSOR_LEAVING,
+		SenderIP:       n.ipAddress,
+		RecieverIP:     n.successor,
+		Keys:           n.UrlMap,
+		NewPredecessor: n.predecessor,
+	}
+	successorReply, err := n.CallRPC(voluntaryLeaveSuccessorMsg, string(n.successor)) // RPC call to successor
+	if err != nil {
+		log.Println("Error in Voluntary leave when sending successor", err)
+	}
+	if successorReply.MsgType == EMPTY {
+		fmt.Printf("Failed to inform successor %s I am leaving\n", n.successor)
+	} else {
+		fmt.Printf("Successfully informed successor %s I am leaving\n", n.successor)
+	}
 
-		for _, entry := range entries {
-			log.Println(entry.ShortURL, "SHORT HASH", HashableString(entry.ShortURL).GenerateHash())
-			log.Println(entry.ShortURL, n.ipAddress, "RUN NODE")
-			short := HashableString(entry.ShortURL)
-			successor := n.FindSuccessor(short.GenerateHash())
-			log.Println(entry.ShortURL, successor, "FOUND SUCCESSOR")
+	// Telling predecessor the last node in its successor list
+	voluntaryLeavePredecessorMsg := RMsg{
+		MsgType:    NOTIFY_PREDECESSOR_LEAVING,
+		SenderIP:   n.ipAddress,
+		RecieverIP: n.predecessor,
+		LastNode:   n.SuccList[len(n.SuccList)-1],
+	}
+	predecessorReply, err := n.CallRPC(voluntaryLeavePredecessorMsg, string(n.predecessor)) // RPC call to predecessor
+	if err != nil {
+		log.Println("Error in Voluntary leave when sending predecessor", err)
+	}
+	if predecessorReply.MsgType == EMPTY {
+		fmt.Printf("Failed to inform predecessor %s I am leaving\n", n.predecessor)
+	} else {
+		fmt.Printf("Successfully informed predecessor %s I am leaving\n", n.predecessor)
+	}
+}
+
+// Informing successor of voluntary leaving
+func (n *Node) voluntaryLeavingSuccessor(keys map[HashableString]map[ShortURL]URLData, newPredecessor HashableString) {
+	n.mu.Lock()
+	fmt.Printf("Message received, original map is %s, predecessor is %s\n", n.UrlMap, n.predecessor)
+	// for k, v := range keys {
+	// 	n.UrlMap[k] = v
+	// }
+	n.predecessor = newPredecessor
+	fmt.Printf("Update complete, new map is %s, new predecessor is %s\n", n.UrlMap, n.predecessor)
+	n.mu.Unlock()
+}
+
+// Informing predecessor of voluntary leaving
+func (n *Node) voluntaryLeavingPredecessor(sender HashableString, lastNode HashableString) {
+	n.mu.Lock()
+	fmt.Printf("Message received, original successor list is %s\n", n.SuccList)
+	newSuccList := []HashableString{}
+	for _, succ := range n.SuccList {
+		if succ != sender {
+			newSuccList = append(newSuccList, succ)
 		}
 	}
-	// }
+	newSuccList = append(newSuccList, lastNode)
+	n.SuccList = newSuccList
+	fmt.Printf("Update complete, new successor list is %s\n", n.SuccList)
+	n.mu.Unlock()
 }
+
+// func (n *Node) Run() {
+// 	// for {
+// 	if n.ipAddress == "0.0.0.0:10007" {
+// 		// act as if it gets url
+// 		// put in url and retrieve it
+// 		entries := []Entry{
+// 			{ShortURL: "short1", LongURL: "http://example.com/long1"},
+// 			{ShortURL: "short2", LongURL: "http://example.com/long2"},
+// 			{ShortURL: "short3", LongURL: "http://example.com/long3"},
+// 		}
+
+// 		for _, entry := range entries {
+// 			log.Println(entry.ShortURL, "SHORT HASH", HashableString(entry.ShortURL).GenerateHash())
+// 			log.Println(entry.ShortURL, n.ipAddress, "RUN NODE")
+// 			short := HashableString(entry.ShortURL)
+// 			successor := n.FindSuccessor(short.GenerateHash())
+// 			log.Println(entry.ShortURL, successor, "FOUND SUCCESSOR")
+// 		}
+// 	}
+// 	// }
+// }
 
 func (node *Node) StoreReplica(replicaMsg *RMsg) {
 	senderNode := replicaMsg.SenderIP

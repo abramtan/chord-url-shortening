@@ -88,6 +88,24 @@ func main() {
 		fmt.Println("URLMap:", node.UrlMap)
 	}
 
+	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	leavenode := nodeAr[len(nodeAr)-2]
+	fmt.Printf("%+v -- LEAVING: %+v\n", leavenode, leavenode.GetIPAddress().GenerateHash())
+
+	leavenode.Leave()
+	nodeAr = append(nodeAr[:len(nodeAr)-2], nodeAr[len(nodeAr)-1:]...)
+
+	fmt.Printf("NODE %s LEFT\n", leavenode.GetIPAddress())
+	for _, node := range nodeAr {
+		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+		// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
+		fmt.Println("IP Address: ", node.GetIPAddress())
+		fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
+		fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
+		fmt.Println("Successor List:", node.SuccList)
+		fmt.Println("URLMap:", node.UrlMap)
+	}
+
 	// // force program to wait
 	// longURLAr := make([]node.LongURL, 0)
 

@@ -15,21 +15,23 @@ import (
 
 // Message types.
 const (
-	PING                   = "ping"                   // Used to check predecessor.
-	ACK                    = "ack"                    // Used for general acknowledgements.
-	FIND_SUCCESSOR         = "find_successor"         // Used to find successor.
-	CLOSEST_PRECEDING_NODE = "closest_preceding_node" // Used to find the closest preceding node, given a successor id.
-	GET_PREDECESSOR        = "get_predecessor"        // Used to get the predecessor of some node.
-	CREATE_SUCCESSOR_LIST  = "create_successor_list"  // Used in RPC call to get node.Successor
-	GET_SUCCESSOR_LIST     = "get_successor_list"     // get the successor's successor list to maintain list
-	NOTIFY                 = "notify"                 // Used to notify a node about a new predecessor.
-	EMPTY                  = "empty"                  // Placeholder or undefined message type or errenous communications.
-	JOIN                   = "join"                   // testing the join function
-	STORE_URL              = "store_url"              // Used to store a url in the node.
-	RETRIEVE_URL           = "retrieve_url"           // Used to retrieve a url from the node.
-	CLIENT_STORE_URL       = "client_store_url"       // Client tells node to store a single short/long URL pair
-	CLIENT_RETRIEVE_URL    = "client_retrieve_url"    // Client tells node to retrieve a single short/long URL pair
-	SEND_REPLICA_DATA      = "send_replica_data"      // used to send node data to successors
+	PING                       = "ping"                       // Used to check predecessor.
+	ACK                        = "ack"                        // Used for general acknowledgements.
+	FIND_SUCCESSOR             = "find_successor"             // Used to find successor.
+	CLOSEST_PRECEDING_NODE     = "closest_preceding_node"     // Used to find the closest preceding node, given a successor id.
+	GET_PREDECESSOR            = "get_predecessor"            // Used to get the predecessor of some node.
+	CREATE_SUCCESSOR_LIST      = "create_successor_list"      // Used in RPC call to get node.Successor
+	GET_SUCCESSOR_LIST         = "get_successor_list"         // get the successor's successor list to maintain list
+	NOTIFY                     = "notify"                     // Used to notify a node about a new predecessor.
+	EMPTY                      = "empty"                      // Placeholder or undefined message type or errenous communications.
+	JOIN                       = "join"                       // testing the join function
+	STORE_URL                  = "store_url"                  // Used to store a url in the node.
+	RETRIEVE_URL               = "retrieve_url"               // Used to retrieve a url from the node.
+	CLIENT_STORE_URL           = "client_store_url"           // Client tells node to store a single short/long URL pair
+	CLIENT_RETRIEVE_URL        = "client_retrieve_url"        // Client tells node to retrieve a single short/long URL pair
+	SEND_REPLICA_DATA          = "send_replica_data"          // used to send node data to successors
+	NOTIFY_SUCCESSOR_LEAVING   = "notify_successor_leaving"   // Voluntary leaving - telling the successor
+	NOTIFY_PREDECESSOR_LEAVING = "notify_predecessor_leaving" // Voluntary leaving - telling the predecessor
 )
 
 type URLData struct {
@@ -38,17 +40,20 @@ type URLData struct {
 }
 
 type RMsg struct {
-	MsgType       string
-	SenderIP      HashableString // Sender IP
-	RecieverIP    HashableString // Receiver IP
-	TargetHash    Hash           // Hash Value of the value to be found (shortURL or IP Address )
-	TargetIP      HashableString // IP of the Found Node
-	StoreEntry    Entry          // for passing the short/long URL pair to be stored for a ShortURL request
-	RetrieveEntry Entry          // for passing the retrieved longURL for a RetrieveURL request
-	HopCount      int            // For succList
-	SuccList      []HashableString
-	ReplicaData   map[ShortURL]URLData
-	Timestamp     time.Time
+	MsgType        string
+	SenderIP       HashableString // Sender IP
+	RecieverIP     HashableString // Receiver IP
+	TargetHash     Hash           // Hash Value of the value to be found (shortURL or IP Address )
+	TargetIP       HashableString // IP of the Found Node
+	StoreEntry     Entry          // for passing the short/long URL pair to be stored for a ShortURL request
+	RetrieveEntry  Entry          // for passing the retrieved longURL for a RetrieveURL request
+	HopCount       int            // For succList
+	SuccList       []HashableString
+	ReplicaData    map[ShortURL]URLData
+	Keys           map[HashableString]map[ShortURL]URLData // For transferring keys when voluntatily leaving
+	NewPredecessor HashableString                          // Informing successor of its new predecessor
+	LastNode       HashableString                          // Last node in the successor list of the node leaving
+	Timestamp      time.Time
 }
 
 type Node struct {
