@@ -299,6 +299,8 @@ func (n *Node) stabilise() {
 }
 
 func (n *Node) fixFingers() {
+	n.mu.Lock()
+    defer n.mu.Unlock()
 	n.fixFingerNext++
 	if n.fixFingerNext > M-1 { // because we are 0-indexed
 		n.fixFingerNext = 0
@@ -424,12 +426,11 @@ func (n *Node) voluntaryLeavingPredecessor(sender HashableString, lastNode Hasha
 // }
 
 func (node *Node) StoreReplica(replicaMsg *RMsg) {
+	node.mu.Lock()
+	defer node.mu.Unlock()
 	senderNode := replicaMsg.SenderIP
 	log.Printf("storeReplica being called")
 	timestamp := time.Now()
-
-	defer node.mu.Unlock()
-	node.mu.Lock()
 
 	replica, replicaFound := node.UrlMap[senderNode]
 	if !replicaFound {
