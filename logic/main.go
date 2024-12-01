@@ -94,7 +94,7 @@ func main() {
 
 	leavenode.Leave()
 	nodeAr = append(nodeAr[:len(nodeAr)-2], nodeAr[len(nodeAr)-1:]...)
-
+	time.Sleep(2)
 	fmt.Printf("NODE %s LEFT\n", leavenode.GetIPAddress())
 	for _, node := range nodeAr {
 		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")

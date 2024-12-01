@@ -342,7 +342,7 @@ func (n *Node) Leave() {
 		MsgType:        NOTIFY_SUCCESSOR_LEAVING,
 		SenderIP:       n.ipAddress,
 		RecieverIP:     n.successor,
-		Keys:           n.UrlMap,
+		Keys:           n.UrlMap[n.ipAddress],
 		NewPredecessor: n.predecessor,
 	}
 	successorReply, err := n.CallRPC(voluntaryLeaveSuccessorMsg, string(n.successor)) // RPC call to successor
@@ -374,12 +374,12 @@ func (n *Node) Leave() {
 }
 
 // Informing successor of voluntary leaving
-func (n *Node) voluntaryLeavingSuccessor(keys map[HashableString]map[ShortURL]URLData, newPredecessor HashableString) {
+func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]URLData, newPredecessor HashableString) {
 	n.mu.Lock()
 	fmt.Printf("Message received, original map is %s, predecessor is %s\n", n.UrlMap, n.predecessor)
-	// for k, v := range keys {
-	// 	n.UrlMap[k] = v
-	// }
+	for k, v := range keys {
+		n.UrlMap[n.ipAddress][k] = v
+	}
 	n.predecessor = newPredecessor
 	fmt.Printf("Update complete, new map is %s, new predecessor is %s\n", n.UrlMap, n.predecessor)
 	n.mu.Unlock()

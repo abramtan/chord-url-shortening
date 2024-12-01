@@ -50,9 +50,9 @@ type RMsg struct {
 	HopCount       int            // For succList
 	SuccList       []HashableString
 	ReplicaData    map[ShortURL]URLData
-	Keys           map[HashableString]map[ShortURL]URLData // For transferring keys when voluntatily leaving
-	NewPredecessor HashableString                          // Informing successor of its new predecessor
-	LastNode       HashableString                          // Last node in the successor list of the node leaving
+	Keys           map[ShortURL]URLData // For transferring keys when voluntatily leaving
+	NewPredecessor HashableString       // Informing successor of its new predecessor
+	LastNode       HashableString       // Last node in the successor list of the node leaving
 	Timestamp      time.Time
 }
 
