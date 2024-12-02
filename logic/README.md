@@ -14,16 +14,26 @@
 7. **Voluntary Node Departure** 
    1. `node.voluntaryLeavingSuccessor`, `voluntaryLeavingPredecessor`, `node.Leave`     
 
-## To Implement
-1. node.check_predecessor
-2. Successor List
-3. Data Replication
-4. Vountary Node Departures (Shift Data, Inform Pred/Succ)
-5. Refinements
-   1. Dynamic IPs and Dynamic Join
-   2. Error Handling - node failures, etc.
-6. Byzantine Fault Tolerance
+## Fault Tolerance Plan
+1. Fault Definition:
+   1. Node Failure
+   2. Communication Failure
+   3. Replica Failures
+   4. Lookup Failure
+2. Impact of Faults:
+   1. Data Unavailability
+   2. Ring Inconsistency
+3. Fault Tolerance Goals:   
+   1. Data Reliability
+   2. Ring Resilience
+   3. Fault Detection
+   4. System Scalability
 
+## To Implement
+1. Refinements
+   1. Dynamic IPs and Dynamic Join
+2. Byzantine Fault Tolerance
+3. Cache
 
 ## Additional Considerations
 - Docker Containers
