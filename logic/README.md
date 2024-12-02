@@ -1,10 +1,10 @@
 ## Currently Implemented
 1. **Ring**
-   1. `init_node`, `node.create`, `node.join`
+   1. `init_node`, `node.create`, `node.join`, `node.initSuccList`
 2. **Key Lookup :**
    1. `node.find_successor`, `node.closest_preceding_node`
 3. **Periodic Func**
-   1. `node.notify`, `node.stabilise`, `node.fix_fingers`
+   1. `node.notify`, `node.stabilise`, `node.fix_fingers`, `node.maintainSuccList`
 4. **Key-Value Lookups**
    1. `node.storeUrl`, `node.retrieveUrl`
 5. **Client Nodes**
