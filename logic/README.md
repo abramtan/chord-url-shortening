@@ -9,6 +9,10 @@
    1. `node.storeUrl`, `node.retrieveUrl`
 5. **Client Nodes**
    1. `clientNode.sendStoreUrl`, `clientNode.sendRetrieveUrl`, `initClientNode`
+6. **Node Failure**
+   1. `node.storeReplica` 
+7. **Voluntary Node Departure** 
+   1. `node.voluntaryLeavingSuccessor`, `voluntaryLeavingPredecessor`, `node.Leave`     
 
 ## To Implement
 1. node.check_predecessor
