@@ -29,6 +29,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		successor := node.FindSuccessor(msg.TargetHash) // first value should be the target IP Address
 		reply.TargetIP = successor
 	case CLIENT_STORE_URL:
+		fmt.Printf("Received CLIENT_STORE_URL message")
 		log.Println("Received CLIENT_STORE_URL message")
 		entry := msg.StoreEntry
 		ip, err := node.StoreURL(entry)
@@ -300,7 +301,7 @@ func (n *Node) stabilise() {
 
 func (n *Node) fixFingers() {
 	n.mu.Lock()
-    defer n.mu.Unlock()
+	defer n.mu.Unlock()
 	n.fixFingerNext++
 	if n.fixFingerNext > M-1 { // because we are 0-indexed
 		n.fixFingerNext = 0
@@ -535,8 +536,15 @@ func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetID Hash) Hashabl
 
 func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 	// this handles the correct node to send the entry to
+	fmt.Printf("Storing URL: %s -> %s\n", entry.ShortURL, entry.LongURL)
 	targetNodeIP := n.FindSuccessor(HashableString(entry.ShortURL).GenerateHash())
 
+	cacheHash := HashableString("CACHE")
+	n.mu.Lock()
+	if _, cacheExists := n.UrlMap[cacheHash]; !cacheExists {
+		n.UrlMap[cacheHash] = make(map[ShortURL]URLData)
+	}
+	n.mu.Unlock()
 	if targetNodeIP == n.ipAddress {
 		defer n.mu.Unlock()
 		n.mu.Lock()
@@ -544,6 +552,10 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 			n.UrlMap[n.ipAddress] = make(map[ShortURL]URLData)
 		}
 		n.UrlMap[n.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now()}
+		n.UrlMap[cacheHash][entry.ShortURL] = URLData{
+			LongURL:   entry.LongURL,
+			Timestamp: time.Now(),
+		}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
 		return n.ipAddress, nil
 	} else {
@@ -559,6 +571,16 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 			return nilHashableString(), err
 		}
 		if reply.MsgType == ACK {
+			ackTimestamp := time.Now() // Use the current timestamp for cache
+			n.mu.Lock()
+			n.UrlMap[cacheHash][entry.ShortURL] = URLData{
+				LongURL:   entry.LongURL,
+				Timestamp: ackTimestamp,
+			}
+			n.mu.Unlock()
+
+			// fmt.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)	
+			log.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
 			return reply.TargetIP, nil
 		}
 	}

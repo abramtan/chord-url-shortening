@@ -16,7 +16,7 @@ func main() {
 	for i := 0; i < 10; i++ {
 		time.Sleep(1000)
 		currNode := node.InitNode(&nodeAr)
-		go currNode.Maintain()  // fix_fingers, stabilise, check_pred
+		go currNode.Maintain()  // fix_fingers, stabilise, check_pred, maintain_succ
 		currNode.InitSuccList() // TODO: should this be here?
 	}
 
