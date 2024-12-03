@@ -55,10 +55,10 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		node.mu.Lock()
 		_, mapFound := node.UrlMap[node.ipAddress]
 		if mapFound {
-			node.UrlMap[node.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL}
+			node.UrlMap[node.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()}
 		} else {
 			node.UrlMap[node.ipAddress] = make(map[ShortURL]URLData)
-			node.UrlMap[node.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL}
+			node.UrlMap[node.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()}
 		}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
 		// send appropiate reply back to the initial node that the client contacted
@@ -199,7 +199,7 @@ func (n *Node) MaintainSuccList() {
 			SenderIP:    n.ipAddress,
 			RecieverIP:  succIP,
 			ReplicaData: replicaData,
-			Timestamp:   time.Now(),
+			Timestamp:   time.Now().Unix(),
 		}
 		log.Printf("INFO: sendSuccData: ", sendSuccData)
 
@@ -431,7 +431,7 @@ func (node *Node) StoreReplica(replicaMsg *RMsg) {
 	defer node.mu.Unlock()
 	senderNode := replicaMsg.SenderIP
 	log.Printf("storeReplica being called")
-	timestamp := time.Now()
+	timestamp := time.Now().Unix()
 
 	replica, replicaFound := node.UrlMap[senderNode]
 	if !replicaFound {
@@ -551,10 +551,10 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 		if _, found := n.UrlMap[n.ipAddress]; !found { // if not found, make map
 			n.UrlMap[n.ipAddress] = make(map[ShortURL]URLData)
 		}
-		n.UrlMap[n.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now()}
+		n.UrlMap[n.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()}
 		n.UrlMap[cacheHash][entry.ShortURL] = URLData{
 			LongURL:   entry.LongURL,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Unix(),
 		}
 
 		n.mu.Unlock()
@@ -573,7 +573,7 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 			return nilHashableString(), err
 		}
 		if reply.MsgType == ACK {
-			ackTimestamp := time.Now() // Use the current timestamp for cache
+			ackTimestamp := time.Now().Unix() // Use the current timestamp for cache
 			n.mu.Lock()
 			n.UrlMap[cacheHash][entry.ShortURL] = URLData{
 				LongURL:   entry.LongURL,
@@ -616,7 +616,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 	}
 
 	localEntry, exists := n.UrlMap[cacheHash][shortUrl]
-	localTimestamp := time.Time{}
+	localTimestamp := time.Time{}.Unix()
 	if exists {
 		localTimestamp = localEntry.Timestamp
 	}
@@ -639,7 +639,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 
 		if !retrievedURL.isNil() {
 			// Conflict resolution
-			if !exists || retrievedTimestamp.After(localEntry.Timestamp) {
+			if !exists || retrievedTimestamp>(localEntry.Timestamp) {
 				n.UrlMap[cacheHash][shortUrl] = URLData{
 					LongURL:   retrievedURL,
 					Timestamp: retrievedTimestamp,
@@ -682,7 +682,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		retrievedTimestamp := reply.RetrieveEntry.Timestamp
 		if !retrievedURL.isNil() {
 			// Conflict resolution
-			if !exists || retrievedTimestamp.After(localEntry.Timestamp) {
+			if !exists || retrievedTimestamp>(localEntry.Timestamp) {
 				n.UrlMap[cacheHash][shortUrl] = URLData{
 					LongURL:   retrievedURL,
 					Timestamp: retrievedTimestamp,
