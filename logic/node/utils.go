@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/rpc"
 	"sync"
-	"time"
 )
 
 // Message types.
@@ -36,7 +35,7 @@ const (
 
 type URLData struct {
 	LongURL   LongURL
-	Timestamp time.Time
+	Timestamp int64
 }
 
 type RMsg struct {
@@ -53,7 +52,7 @@ type RMsg struct {
 	Keys           map[ShortURL]URLData // For transferring keys when voluntatily leaving
 	NewPredecessor HashableString       // Informing successor of its new predecessor
 	LastNode       HashableString       // Last node in the successor list of the node leaving
-	Timestamp      time.Time
+	Timestamp      int64
 }
 
 type Node struct {
@@ -93,7 +92,7 @@ const (
 type Entry struct {
 	ShortURL  ShortURL
 	LongURL   LongURL
-	Timestamp time.Time
+	Timestamp int64
 }
 
 // UTILITY FUNCTIONS - Node
