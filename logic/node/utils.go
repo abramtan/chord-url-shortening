@@ -109,6 +109,7 @@ func (node *Node) CallRPC(msg RMsg, IP string) (RMsg, error) {
 		// Return an empty RMsg and the error
 		return RMsg{}, fmt.Errorf("failed to connect to %s: %w", IP, err)
 	}
+	defer clnt.Close()
 
 	reply := RMsg{}
 	err = clnt.Call("Node.HandleIncomingMessage", &msg, &reply)

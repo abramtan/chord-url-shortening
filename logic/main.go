@@ -1,16 +1,25 @@
 package main
 
 import (
-	// "fmt"
 	"fmt"
 	"io"
 	"log"
 	"logic/node"
+	"net/http"
+	_ "net/http/pprof"
 	"time"
 )
 
 func main() {
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	nodeAr := make([]*node.Node, 0)
+	// go func() {
+	// 	log.Println(http.ListenAndServe("localhost:6060", nil))
+	// }()
 
 	// Initialize nodes
 	for i := 0; i < 10; i++ {
@@ -108,6 +117,7 @@ func main() {
 
 	// force program to wait
 	// longURLAr := make([]node.LongURL, 0)
+	// longURLAr := make([]node.LongURL, 0)
 
 	// menuLogger exported
 	// var menuLogger *log.Logger
@@ -121,6 +131,8 @@ func main() {
 
 	// menuLogger = log.New(generalLog, "Menu Logger:\t", log.Ldate|log.Ltime|log.Lshortfile)
 	// log.SetOutput(log.Writer())
+	// time.Sleep(1500)
+	// showmenu()
 	// time.Sleep(1500)
 	// showmenu()
 
