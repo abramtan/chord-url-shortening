@@ -301,8 +301,8 @@ func (n *Node) stabilise() {
 
 func (n *Node) fixFingers() {
 	n.mu.Lock()
-	defer n.mu.Unlock()
 	n.fixFingerNext++
+	n.mu.Unlock()
 	if n.fixFingerNext > M-1 { // because we are 0-indexed
 		n.fixFingerNext = 0
 	}
@@ -310,7 +310,11 @@ func (n *Node) fixFingers() {
 	convToHash := float64(n.ipAddress.GenerateHash()) + math.Pow(2, float64(n.fixFingerNext))
 	// ensure it doesn't exceed the ring
 	convToHash = math.Mod(float64(convToHash), math.Pow(2, M))
-	n.fingerTable[n.fixFingerNext] = n.FindSuccessor(Hash(convToHash))
+	successor := n.FindSuccessor(Hash(convToHash))
+
+	n.mu.Lock()
+	n.fingerTable[n.fixFingerNext] = successor
+	n.mu.Unlock()
 }
 
 func (n *Node) checkPredecessor() {
@@ -379,12 +383,12 @@ func (n *Node) Leave() {
 // Informing successor of voluntary leaving
 func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]URLData, newPredecessor HashableString) {
 	n.mu.Lock()
-	fmt.Printf("Message received, original map is %s, predecessor is %s\n", n.UrlMap, n.predecessor)
+	fmt.Printf("Message received, original map is %v, predecessor is %s\n", n.UrlMap, n.predecessor)
 	for k, v := range keys {
 		n.UrlMap[n.ipAddress][k] = v
 	}
 	n.predecessor = newPredecessor
-	fmt.Printf("Update complete, new map is %s, new predecessor is %s\n", n.UrlMap, n.predecessor)
+	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap, n.predecessor)
 	n.mu.Unlock()
 }
 
@@ -639,7 +643,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 
 		if !retrievedURL.isNil() {
 			// Conflict resolution
-			if !exists || retrievedTimestamp>(localEntry.Timestamp) {
+			if !exists || retrievedTimestamp > (localEntry.Timestamp) {
 				n.UrlMap[cacheHash][shortUrl] = URLData{
 					LongURL:   retrievedURL,
 					Timestamp: retrievedTimestamp,
@@ -682,7 +686,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		retrievedTimestamp := reply.RetrieveEntry.Timestamp
 		if !retrievedURL.isNil() {
 			// Conflict resolution
-			if !exists || retrievedTimestamp>(localEntry.Timestamp) {
+			if !exists || retrievedTimestamp > (localEntry.Timestamp) {
 				n.UrlMap[cacheHash][shortUrl] = URLData{
 					LongURL:   retrievedURL,
 					Timestamp: retrievedTimestamp,
