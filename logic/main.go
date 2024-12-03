@@ -89,40 +89,40 @@ func main() {
 	time.Sleep(5 * time.Second)
 
 	// log.SetOutput(io.Discard)
-	for _, node := range nodeAr {
-		node.Mu.Lock()
-		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-		// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
-		fmt.Println("IP Address: ", node.GetIPAddress())
-		fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
-		fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
-		fmt.Println("Successor List:", node.SuccList)
-		fmt.Println("URLMap:", node.UrlMap)
-		node.Mu.Unlock()
-	}
+	// for _, node := range nodeAr {
+	// 	node.Mu.Lock()
+	// 	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	// 	// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
+	// 	fmt.Println("IP Address: ", node.GetIPAddress())
+	// 	fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
+	// 	fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
+	// 	fmt.Println("Successor List:", node.SuccList)
+	// 	fmt.Println("URLMap:", node.UrlMap)
+	// 	node.Mu.Unlock()
+	// }
 
-	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-	leavenode := nodeAr[len(nodeAr)-2]
-	fmt.Printf("%+v -- LEAVING: %+v\n", leavenode, leavenode.GetIPAddress().GenerateHash())
+	// fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	// leavenode := nodeAr[len(nodeAr)-2]
+	// fmt.Printf("%+v -- LEAVING: %+v\n", leavenode, leavenode.GetIPAddress().GenerateHash())
 
-	leavenode.Leave()
-	nodeAr = append(nodeAr[:len(nodeAr)-2], nodeAr[len(nodeAr)-1:]...)
-	time.Sleep(2000)
-	fmt.Printf("NODE %s LEFT\n", leavenode.GetIPAddress())
-	for _, node := range nodeAr {
-		node.Mu.Lock()
-		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-		// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
-		fmt.Println("IP Address: ", node.GetIPAddress())
-		fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
-		fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
-		fmt.Println("Successor List:", node.SuccList)
-		fmt.Println("URLMap:", node.UrlMap)
-		node.Mu.Unlock()
-	}
+	// leavenode.Leave()
+	// nodeAr = append(nodeAr[:len(nodeAr)-2], nodeAr[len(nodeAr)-1:]...)
+	// time.Sleep(2000)
+	// fmt.Printf("NODE %s LEFT\n", leavenode.GetIPAddress())
+	// for _, node := range nodeAr {
+	// 	node.Mu.Lock()
+	// 	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	// 	// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
+	// 	fmt.Println("IP Address: ", node.GetIPAddress())
+	// 	fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
+	// 	fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
+	// 	fmt.Println("Successor List:", node.SuccList)
+	// 	fmt.Println("URLMap:", node.UrlMap)
+	// 	node.Mu.Unlock()
+	// }
 
-	// force program to wait
-	longURLAr := make([]node.LongURL, 0)
+	// // force program to wait
+	// longURLAr := make([]node.LongURL, 0)
 
 	// menuLogger exported
 	// var menuLogger *log.Logger
@@ -141,60 +141,60 @@ func main() {
 	// time.Sleep(1500)
 	// showmenu()
 
-	for {
-		time.Sleep(5 * time.Millisecond)
-		var input string
-		fmt.Println("****************************************************************")
-		fmt.Println(" 	 Enter ADD, DEL, STORE, RETRIEVE, SHOW, LONGURL, MENU:  	")
-		fmt.Println("****************************************************************")
-		fmt.Scanln(&input)
+	// for {
+	// 	time.Sleep(5 * time.Millisecond)
+	// 	var input string
+	// 	fmt.Println("****************************************************************")
+	// 	fmt.Println(" 	 Enter ADD, DEL, STORE, RETRIEVE, SHOW, LONGURL, MENU:  	")
+	// 	fmt.Println("****************************************************************")
+	// 	fmt.Scanln(&input)
 
-		switch input {
-		case "ADD":
-			fmt.Println("Add a Node:")
-			newNode := node.InitNode(&nodeAr)
-			go newNode.Maintain()  // fix_fingers, stabilise, check_pred
-			newNode.InitSuccList() // TODO: should this be here?
-		case "DEL":
-			fmt.Println("Not Implemented Yet")
-		case "STORE":
-			fmt.Println("Type Long URL to store:")
-			var LONGURL string
-			fmt.Scanln(&LONGURL)
-			longURLAr = append(longURLAr, node.LongURL(LONGURL))
-			tempShort := string(clientNode.GenerateShortURL(node.LongURL(LONGURL)))
-			successIP := clientNode.ClientSendStoreURL(LONGURL, tempShort, nodeAr) // selects random Node to send to
-			fmt.Println("Reached Final IP", successIP)
-		case "RETRIEVE":
-			fmt.Println("Type Short URL to retrieve:")
-			var SHORTURL string
-			fmt.Scanln(&SHORTURL)
-			acquiredURL, found := clientNode.ClientRetrieveURL(SHORTURL, nodeAr)
+	// 	switch input {
+	// 	case "ADD":
+	// 		fmt.Println("Add a Node:")
+	// 		newNode := node.InitNode(&nodeAr)
+	// 		go newNode.Maintain()  // fix_fingers, stabilise, check_pred
+	// 		newNode.InitSuccList() // TODO: should this be here?
+	// 	case "DEL":
+	// 		fmt.Println("Not Implemented Yet")
+	// 	case "STORE":
+	// 		fmt.Println("Type Long URL to store:")
+	// 		var LONGURL string
+	// 		fmt.Scanln(&LONGURL)
+	// 		longURLAr = append(longURLAr, node.LongURL(LONGURL))
+	// 		tempShort := string(clientNode.GenerateShortURL(node.LongURL(LONGURL)))
+	// 		successIP := clientNode.ClientSendStoreURL(LONGURL, tempShort, nodeAr) // selects random Node to send to
+	// 		fmt.Println("Reached Final IP", successIP)
+	// 	case "RETRIEVE":
+	// 		fmt.Println("Type Short URL to retrieve:")
+	// 		var SHORTURL string
+	// 		fmt.Scanln(&SHORTURL)
+	// 		acquiredURL, found := clientNode.ClientRetrieveURL(SHORTURL, nodeAr)
 
-			fmt.Println("retrieve entry", acquiredURL, "found", found)
-			if found {
-				fmt.Printf("URL Retrieved: %s -> %s\n", retrievedEntry.ShortURL, retrievedEntry.LongURL)
-			} else {
-				fmt.Println("URL not found")
-			}
-		case "LONGURL":
-			fmt.Println(longURLAr)
-		case "SHOW":
-			for _, node := range nodeAr {
-				fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-				// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
-				fmt.Println("IP Address: ", node.GetIPAddress())
-				fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
-				fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
-				fmt.Println("Successor List:", node.SuccList)
-				fmt.Println("URLMap:", node.UrlMap)
-			}
-		case "MENU":
-			showmenu()
-		default:
-			fmt.Println("Invalid input...")
-		}
-	}
+	// 		fmt.Println("retrieve entry", acquiredURL, "found", found)
+	// 		if found {
+	// 			fmt.Printf("URL Retrieved: %s -> %s\n", retrievedEntry.ShortURL, retrievedEntry.LongURL)
+	// 		} else {
+	// 			fmt.Println("URL not found")
+	// 		}
+	// 	case "LONGURL":
+	// 		fmt.Println(longURLAr)
+	// 	case "SHOW":
+	// 		for _, node := range nodeAr {
+	// 			fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	// 			// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
+	// 			fmt.Println("IP Address: ", node.GetIPAddress())
+	// 			fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
+	// 			fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
+	// 			fmt.Println("Successor List:", node.SuccList)
+	// 			fmt.Println("URLMap:", node.UrlMap)
+	// 		}
+	// 	case "MENU":
+	// 		showmenu()
+	// 	default:
+	// 		fmt.Println("Invalid input...")
+	// 	}
+	// }
 }
 
 /* Show a list of options to choose from.*/

@@ -41,7 +41,9 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		}
 	case CLIENT_RETRIEVE_URL:
 		log.Println("Received CLIENT_RETRIEVE_URL message")
+		node.Mu.Lock()
 		ShortURL := msg.RetrieveEntry.ShortURL
+		node.Mu.Unlock()
 		LongURL, found := node.RetrieveURL(ShortURL)
 		if found {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: LongURL}
@@ -51,8 +53,8 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		reply.MsgType = ACK
 	case STORE_URL:
 		// TODO: Error checking in case it's the shortURL hash is not actually for this node?
-		entry := msg.StoreEntry
 		node.Mu.Lock()
+		entry := msg.StoreEntry
 		_, mapFound := node.UrlMap[node.ipAddress]
 		if mapFound {
 			node.UrlMap[node.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()}
@@ -119,15 +121,19 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 // TODO : implement checkSuccessorAlive in stablise ==> need to update the successor + succList
 func (n *Node) InitSuccList() ([]HashableString, error) {
 
+	n.Mu.Lock()
+	successor := n.successor
+	n.Mu.Unlock()
+
 	initSuccessorListMsg := RMsg{
 		MsgType:    CREATE_SUCCESSOR_LIST,
 		SenderIP:   n.ipAddress,
-		RecieverIP: n.successor,
+		RecieverIP: successor,
 		HopCount:   REPLICAS,
 		SuccList:   make([]HashableString, 0),
 	}
 
-	reply, err := n.CallRPC(initSuccessorListMsg, string(n.successor))
+	reply, err := n.CallRPC(initSuccessorListMsg, string(successor))
 	if len(reply.SuccList) == 0 || err != nil {
 		return []HashableString{}, errors.New("successor list empty")
 	}
@@ -173,15 +179,20 @@ func (n *Node) appendSuccList(hopCount int, succList []HashableString) ([]Hashab
 }
 
 func (n *Node) MaintainSuccList() {
+	n.Mu.Lock()
+	senderIP := n.ipAddress
+	receiverIP := n.successor
+	n.Mu.Unlock()
+
 	getSuccList := RMsg{
 		MsgType:    GET_SUCCESSOR_LIST,
-		SenderIP:   n.ipAddress,
-		RecieverIP: n.successor,
+		SenderIP:   senderIP,
+		RecieverIP: receiverIP,
 	}
 
-	reply, err := n.CallRPC(getSuccList, string(n.successor))
+	reply, err := n.CallRPC(getSuccList, string(receiverIP))
 	if err != nil || len(reply.SuccList) == 0 {
-		log.Printf("WARN: Successor %s is unresponsive or returned an empty successor list.\n", n.successor)
+		log.Printf("WARN: Successor %s is unresponsive or returned an empty successor list.\n", receiverIP)
 
 		defer n.Mu.Unlock()
 		n.Mu.Lock()
@@ -190,15 +201,13 @@ func (n *Node) MaintainSuccList() {
 			log.Printf("INFO: Promoting %s to primary successor.\n", n.successor)
 		} else {
 			log.Println("ERROR: No valid successors available.")
-			// n.mu.Unlock()
 			return
 		}
-		// n.mu.Unlock()
 		return
 	}
 
-	successorSuccList := reply.SuccList
 	n.Mu.Lock()
+	successorSuccList := reply.SuccList
 	n.SuccList = append([]HashableString{n.successor}, successorSuccList[:len(successorSuccList)-1]...) // Exclude the last element
 	currMap := n.SuccList
 	replicaData := n.UrlMap[n.ipAddress]
@@ -637,6 +646,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		return nilLongURL(), false
 	}
 
+	n.Mu.Lock()
 	cacheHash := HashableString("CACHE")
 	// Step 1 : check if cache exists
 	_, cacheExists := n.UrlMap[cacheHash]
@@ -650,6 +660,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 	if exists {
 		localTimestamp = localEntry.Timestamp
 	}
+	n.Mu.Unlock()
 
 	// send retrieve url message to targetNode
 	retrieveMsg := RMsg{
