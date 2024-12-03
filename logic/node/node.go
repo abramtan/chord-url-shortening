@@ -601,10 +601,6 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		return nilLongURL(), false
 	}
 
-	// this means need to call the correct node
-
-	// qn why is it storing in its own node
-
 	cacheHash := HashableString("CACHE")
 	// Step 1 : check if cache exists
 	_, cacheExists := n.UrlMap[cacheHash]
@@ -636,11 +632,10 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		log.Printf("Retrieved URL: %s with Timestamp: %v", retrievedURL, retrievedTimestamp)
 
 		if !retrievedURL.isNil() {
-			// Conflict resolution
-			if !exists || retrievedTimestamp>(localEntry.Timestamp) {
+			if retrievedTimestamp > 0 && (!exists || retrievedTimestamp>(localEntry.Timestamp)) {
 				n.UrlMap[cacheHash][shortUrl] = URLData{
 					LongURL:   retrievedURL,
-					Timestamp: retrievedTimestamp,
+					Timestamp: time.Now().Unix(),
 				}
 				log.Printf("Conflict resolved: Updated local data for %s with newer data.", shortUrl)
 			}
@@ -680,10 +675,10 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		retrievedTimestamp := reply.RetrieveEntry.Timestamp
 		if !retrievedURL.isNil() {
 			// Conflict resolution
-			if !exists || retrievedTimestamp>(localEntry.Timestamp) {
+			if retrievedTimestamp > 0 && (!exists || retrievedTimestamp>(localEntry.Timestamp)) {
 				n.UrlMap[cacheHash][shortUrl] = URLData{
 					LongURL:   retrievedURL,
-					Timestamp: retrievedTimestamp,
+					Timestamp: time.Now().Unix(),
 				}
 				log.Printf("Conflict resolved: Updated local data for %s with newer data from replica.", shortUrl)
 			}

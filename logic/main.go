@@ -107,7 +107,7 @@ func main() {
 	}
 
 	// force program to wait
-	longURLAr := make([]node.LongURL, 0)
+	// longURLAr := make([]node.LongURL, 0)
 
 	// menuLogger exported
 	// var menuLogger *log.Logger
@@ -121,52 +121,52 @@ func main() {
 
 	// menuLogger = log.New(generalLog, "Menu Logger:\t", log.Ldate|log.Ltime|log.Lshortfile)
 	// log.SetOutput(log.Writer())
-	time.Sleep(1500)
-	showmenu()
+	// time.Sleep(1500)
+	// showmenu()
 
-	for {
-		time.Sleep(5000)
-		var input string
-		fmt.Println("********************************")
-		fmt.Println("  Enter ADD, DEL, STORE, MENU:  ")
-		fmt.Println("********************************")
-		fmt.Scanln(&input)
+	// for {
+	// 	time.Sleep(5000)
+	// 	var input string
+	// 	fmt.Println("********************************")
+	// 	fmt.Println("  Enter ADD, DEL, STORE, MENU:  ")
+	// 	fmt.Println("********************************")
+	// 	fmt.Scanln(&input)
 
-		switch input {
-		case "ADD":
-			newNode := node.InitNode(&nodeAr)
-			go newNode.Maintain()  // fix_fingers, stabilise, check_pred
-			newNode.InitSuccList() // TODO: should this be here?
-		case "DEL":
-			fmt.Println("Not Implemented Yet")
-		case "STORE":
-			fmt.Println("Type Long URL to store:")
-			var LONGURL string
-			fmt.Scanln(&LONGURL)
-			longURLAr = append(longURLAr, node.LongURL(LONGURL))
-			tempShort := string(clientNode.GenerateShortURL(node.LongURL(LONGURL)))
-			successIP := clientNode.ClientSendStoreURL(LONGURL, tempShort, nodeAr) // selects random Node to send to
-			fmt.Println("Reached Final IP", successIP)
-		case "RETRIEVE":
-			fmt.Println("Type Short URL to retrieve:")
-			var SHORTURL string
-			fmt.Scanln(&SHORTURL)
-			acquiredURL, found := clientNode.ClientRetrieveURL(SHORTURL, nodeAr)
+	// 	switch input {
+	// 	case "ADD":
+	// 		newNode := node.InitNode(&nodeAr)
+	// 		go newNode.Maintain()  // fix_fingers, stabilise, check_pred
+	// 		newNode.InitSuccList() // TODO: should this be here?
+	// 	case "DEL":
+	// 		fmt.Println("Not Implemented Yet")
+	// 	case "STORE":
+	// 		fmt.Println("Type Long URL to store:")
+	// 		var LONGURL string
+	// 		fmt.Scanln(&LONGURL)
+	// 		longURLAr = append(longURLAr, node.LongURL(LONGURL))
+	// 		tempShort := string(clientNode.GenerateShortURL(node.LongURL(LONGURL)))
+	// 		successIP := clientNode.ClientSendStoreURL(LONGURL, tempShort, nodeAr) // selects random Node to send to
+	// 		fmt.Println("Reached Final IP", successIP)
+	// 	case "RETRIEVE":
+	// 		fmt.Println("Type Short URL to retrieve:")
+	// 		var SHORTURL string
+	// 		fmt.Scanln(&SHORTURL)
+	// 		acquiredURL, found := clientNode.ClientRetrieveURL(SHORTURL, nodeAr)
 
-			fmt.Println("retrieve entry", acquiredURL, "found", found)
-			if found {
-				fmt.Printf("URL Retrieved: %s -> %s\n", retrievedEntry.ShortURL, retrievedEntry.LongURL)
-			} else {
-				fmt.Println("URL not found")
-			}
-		case "LONGURL":
-			fmt.Println(longURLAr)
-		case "MENU":
-			showmenu()
-		default:
-			fmt.Println("Invalid input...")
-		}
-	}
+	// 		fmt.Println("retrieve entry", acquiredURL, "found", found)
+	// 		if found {
+	// 			fmt.Printf("URL Retrieved: %s -> %s\n", retrievedEntry.ShortURL, retrievedEntry.LongURL)
+	// 		} else {
+	// 			fmt.Println("URL not found")
+	// 		}
+	// 	case "LONGURL":
+	// 		fmt.Println(longURLAr)
+	// 	case "MENU":
+	// 		showmenu()
+	// 	default:
+	// 		fmt.Println("Invalid input...")
+	// 	}
+	// }
 }
 
 /* Show a list of options to choose from.*/
