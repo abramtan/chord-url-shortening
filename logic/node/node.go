@@ -52,7 +52,6 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case STORE_URL:
 		// TODO: Error checking in case it's the shortURL hash is not actually for this node?
 		entry := msg.StoreEntry
-		defer node.mu.Unlock()
 		node.mu.Lock()
 		_, mapFound := node.UrlMap[node.ipAddress]
 		if mapFound {
@@ -63,6 +62,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
 		// send appropiate reply back to the initial node that the client contacted
+		node.mu.Unlock()
 		reply.TargetIP = node.ipAddress
 		reply.MsgType = ACK
 	case RETRIEVE_URL:
@@ -293,7 +293,7 @@ func (n *Node) stabilise() {
 		RecieverIP: n.successor,
 	}
 
-	reply2, err := n.CallRPC(notifyMsg, string(n.successor))
+	reply2, _ := n.CallRPC(notifyMsg, string(n.successor))
 	if reply2.MsgType == ACK {
 		log.Println("Recv ACK for Notify Msg from", n.ipAddress)
 	}
@@ -334,7 +334,7 @@ func (n *Node) Maintain() {
 		n.stabilise()
 		n.checkPredecessor()
 		n.MaintainSuccList()
-		time.Sleep(2 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -546,7 +546,7 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 	}
 	n.mu.Unlock()
 	if targetNodeIP == n.ipAddress {
-		defer n.mu.Unlock()
+		// defer
 		n.mu.Lock()
 		if _, found := n.UrlMap[n.ipAddress]; !found { // if not found, make map
 			n.UrlMap[n.ipAddress] = make(map[ShortURL]URLData)
@@ -556,6 +556,8 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 			LongURL:   entry.LongURL,
 			Timestamp: time.Now(),
 		}
+
+		n.mu.Unlock()
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
 		return n.ipAddress, nil
 	} else {
@@ -579,7 +581,7 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 			}
 			n.mu.Unlock()
 
-			// fmt.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)	
+			// fmt.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
 			log.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
 			return reply.TargetIP, nil
 		}
