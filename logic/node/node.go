@@ -52,7 +52,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case STORE_URL:
 		// TODO: Error checking in case it's the shortURL hash is not actually for this node?
 		entry := msg.StoreEntry
-		node.mu.Lock()
+		node.Mu.Lock()
 		_, mapFound := node.UrlMap[node.ipAddress]
 		if mapFound {
 			node.UrlMap[node.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()}
@@ -62,7 +62,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
 		// send appropiate reply back to the initial node that the client contacted
-		node.mu.Unlock()
+		node.Mu.Unlock()
 		reply.TargetIP = node.ipAddress
 		reply.MsgType = ACK
 	case RETRIEVE_URL:
@@ -77,8 +77,11 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		}
 		reply.MsgType = ACK
 	case GET_PREDECESSOR:
-		log.Println("Received GET PRED message", node.predecessor)
-		reply.TargetIP = node.predecessor
+		node.Mu.Lock()
+		pred := node.predecessor
+		node.Mu.Unlock()
+		log.Println("Received GET PRED message", pred)
+		reply.TargetIP = pred
 	case NOTIFY:
 		log.Println("Received NOTIFY message")
 		nPrime := msg.SenderIP
@@ -90,7 +93,9 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case CREATE_SUCCESSOR_LIST:
 		node.appendSuccList(msg.HopCount, msg.SuccList)
 	case GET_SUCCESSOR_LIST:
+		node.Mu.Lock()
 		reply.SuccList = node.SuccList
+		node.Mu.Unlock()
 	case SEND_REPLICA_DATA:
 		log.Println("Recieved Node Data")
 		node.StoreReplica(msg)
@@ -126,34 +131,40 @@ func (n *Node) InitSuccList() ([]HashableString, error) {
 	if len(reply.SuccList) == 0 || err != nil {
 		return []HashableString{}, errors.New("successor list empty")
 	}
-	n.mu.Lock()
+	n.Mu.Lock()
 	n.SuccList = reply.SuccList
-	n.mu.Unlock()
+	n.Mu.Unlock()
 	return reply.SuccList, nil
 }
 
 func (n *Node) appendSuccList(hopCount int, succList []HashableString) ([]HashableString, error) {
 	// this method is recursive (it can be done iteratively)
 	hopCount--
+	n.Mu.Lock()
+	ip := n.ipAddress
+	succ := n.successor
+	n.Mu.Unlock()
+
 	if hopCount == 0 {
 		if len(succList) == 0 {
 			return []HashableString{}, errors.New("SuccList Empty after reaching count 0")
 		}
-		succList = append(succList, n.ipAddress)
+		succList = append(succList, ip)
 		return succList, nil
 	} else {
 		// append itself to successorList
-		succList = append(succList, n.ipAddress)
+
+		succList = append(succList, ip)
 
 		forwardSuccessorListMsg := RMsg{
 			MsgType:    CREATE_SUCCESSOR_LIST,
-			SenderIP:   n.ipAddress,
-			RecieverIP: n.successor,
+			SenderIP:   ip,
+			RecieverIP: succ,
 			HopCount:   hopCount,
 			SuccList:   succList,
 		}
 
-		reply, err := n.CallRPC(forwardSuccessorListMsg, string(n.successor))
+		reply, err := n.CallRPC(forwardSuccessorListMsg, string(succ))
 		if err != nil {
 			return []HashableString{}, err
 		}
@@ -172,8 +183,8 @@ func (n *Node) MaintainSuccList() {
 	if err != nil || len(reply.SuccList) == 0 {
 		log.Printf("WARN: Successor %s is unresponsive or returned an empty successor list.\n", n.successor)
 
-		defer n.mu.Unlock()
-		n.mu.Lock()
+		defer n.Mu.Unlock()
+		n.Mu.Lock()
 		if len(n.SuccList) > 1 {
 			n.successor = n.SuccList[1]
 			log.Printf("INFO: Promoting %s to primary successor.\n", n.successor)
@@ -187,11 +198,11 @@ func (n *Node) MaintainSuccList() {
 	}
 
 	successorSuccList := reply.SuccList
-	n.mu.Lock()
+	n.Mu.Lock()
 	n.SuccList = append([]HashableString{n.successor}, successorSuccList[:len(successorSuccList)-1]...) // Exclude the last element
 	currMap := n.SuccList
 	replicaData := n.UrlMap[n.ipAddress]
-	n.mu.Unlock()
+	n.Mu.Unlock()
 
 	for _, succIP := range currMap {
 		sendSuccData := RMsg{
@@ -201,7 +212,7 @@ func (n *Node) MaintainSuccList() {
 			ReplicaData: replicaData,
 			Timestamp:   time.Now().Unix(),
 		}
-		log.Printf("INFO: sendSuccData: ", sendSuccData)
+		log.Println("INFO: sendSuccData: ", sendSuccData)
 
 		// Ensure replica data is sent successfully
 		reply, err := n.CallRPC(sendSuccData, string(succIP))
@@ -282,7 +293,9 @@ func (n *Node) stabilise() {
 	} else {
 		if succPred.GenerateHash().inBetween(n.ipAddress.GenerateHash(), n.successor.GenerateHash(), false) {
 			log.Println("SETTING SUCCESSOR", n.ipAddress, n.successor, succPred)
+			n.Mu.Lock()
 			n.successor = succPred
+			n.Mu.Unlock()
 		}
 	}
 
@@ -300,9 +313,9 @@ func (n *Node) stabilise() {
 }
 
 func (n *Node) fixFingers() {
-	n.mu.Lock()
+	n.Mu.Lock()
 	n.fixFingerNext++
-	n.mu.Unlock()
+	n.Mu.Unlock()
 	if n.fixFingerNext > M-1 { // because we are 0-indexed
 		n.fixFingerNext = 0
 	}
@@ -312,23 +325,30 @@ func (n *Node) fixFingers() {
 	convToHash = math.Mod(float64(convToHash), math.Pow(2, M))
 	successor := n.FindSuccessor(Hash(convToHash))
 
-	n.mu.Lock()
+	n.Mu.Lock()
 	n.fingerTable[n.fixFingerNext] = successor
-	n.mu.Unlock()
+	n.Mu.Unlock()
 }
 
 func (n *Node) checkPredecessor() {
+	n.Mu.Lock()
+	ip := n.ipAddress
+	pred := n.predecessor
+	n.Mu.Unlock()
+
 	pingMsg := RMsg{
 		MsgType:    PING,
-		SenderIP:   n.ipAddress,
-		RecieverIP: n.predecessor,
+		SenderIP:   ip,
+		RecieverIP: pred,
 	}
 
 	// RPC call to predecessor
-	reply, err := n.CallRPC(pingMsg, string(n.predecessor))
+	reply, err := n.CallRPC(pingMsg, string(pred))
 	// No response from predecessor, set predecessor to nil
 	if reply.MsgType == EMPTY || err != nil {
+		n.Mu.Lock()
 		n.predecessor = nilHashableString()
+		n.Mu.Unlock()
 	}
 }
 
@@ -382,19 +402,19 @@ func (n *Node) Leave() {
 
 // Informing successor of voluntary leaving
 func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]URLData, newPredecessor HashableString) {
-	n.mu.Lock()
+	n.Mu.Lock()
 	fmt.Printf("Message received, original map is %v, predecessor is %s\n", n.UrlMap, n.predecessor)
 	for k, v := range keys {
 		n.UrlMap[n.ipAddress][k] = v
 	}
 	n.predecessor = newPredecessor
 	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap, n.predecessor)
-	n.mu.Unlock()
+	n.Mu.Unlock()
 }
 
 // Informing predecessor of voluntary leaving
 func (n *Node) voluntaryLeavingPredecessor(sender HashableString, lastNode HashableString) {
-	n.mu.Lock()
+	n.Mu.Lock()
 	fmt.Printf("Message received, original successor list is %s\n", n.SuccList)
 	newSuccList := []HashableString{}
 	for _, succ := range n.SuccList {
@@ -405,7 +425,7 @@ func (n *Node) voluntaryLeavingPredecessor(sender HashableString, lastNode Hasha
 	newSuccList = append(newSuccList, lastNode)
 	n.SuccList = newSuccList
 	fmt.Printf("Update complete, new successor list is %s\n", n.SuccList)
-	n.mu.Unlock()
+	n.Mu.Unlock()
 }
 
 // func (n *Node) Run() {
@@ -431,8 +451,8 @@ func (n *Node) voluntaryLeavingPredecessor(sender HashableString, lastNode Hasha
 // }
 
 func (node *Node) StoreReplica(replicaMsg *RMsg) {
-	node.mu.Lock()
-	defer node.mu.Unlock()
+	node.Mu.Lock()
+	defer node.Mu.Unlock()
 	senderNode := replicaMsg.SenderIP
 	log.Printf("storeReplica being called")
 	timestamp := time.Now().Unix()
@@ -458,6 +478,7 @@ func (node *Node) StoreReplica(replicaMsg *RMsg) {
 }
 
 func (node *Node) Notify(nPrime HashableString) {
+	node.Mu.Lock()
 	if node.predecessor.isNil() {
 		node.predecessor = nPrime
 	}
@@ -469,6 +490,7 @@ func (node *Node) Notify(nPrime HashableString) {
 	) {
 		node.predecessor = nPrime
 	}
+	node.Mu.Unlock()
 }
 
 func (n *Node) CreateNetwork() {
@@ -503,18 +525,24 @@ func (n *Node) FindSuccessor(targetID Hash) HashableString {
 		panic("Bigger than Ring")
 	}
 
-	if targetID.inBetween(n.ipAddress.GenerateHash(), n.successor.GenerateHash(), true) {
-		return n.successor
+	n.Mu.Lock()
+	ip := n.ipAddress
+	succ := n.successor
+	ft := n.fingerTable
+	n.Mu.Unlock()
+
+	if targetID.inBetween(ip.GenerateHash(), succ.GenerateHash(), true) {
+		return succ
 	}
 
-	otherNodeIP := n.ClosestPrecedingNode(len(n.fingerTable), targetID)
-	if otherNodeIP == n.ipAddress {
-		return n.successor
+	otherNodeIP := n.ClosestPrecedingNode(len(ft), targetID)
+	if otherNodeIP == ip {
+		return succ
 	}
 
 	findSuccMsg := RMsg{
 		MsgType:    FIND_SUCCESSOR,
-		SenderIP:   n.ipAddress,
+		SenderIP:   ip,
 		RecieverIP: otherNodeIP,
 		TargetHash: targetID,
 	}
@@ -528,6 +556,8 @@ func (n *Node) FindSuccessor(targetID Hash) HashableString {
 }
 
 func (n *Node) ClosestPrecedingNode(numberOfMachines int, targetID Hash) HashableString {
+	defer n.Mu.Unlock()
+	n.Mu.Lock()
 	for i := numberOfMachines - 1; i >= 0; i-- {
 		if n.fingerTable[i] != HashableString("") { // extra check to make sure our finger table is not empty
 			if n.fingerTable[i].GenerateHash().inBetween(n.ipAddress.GenerateHash(), targetID, false) {
@@ -544,14 +574,14 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 	targetNodeIP := n.FindSuccessor(HashableString(entry.ShortURL).GenerateHash())
 
 	cacheHash := HashableString("CACHE")
-	n.mu.Lock()
+	n.Mu.Lock()
 	if _, cacheExists := n.UrlMap[cacheHash]; !cacheExists {
 		n.UrlMap[cacheHash] = make(map[ShortURL]URLData)
 	}
-	n.mu.Unlock()
+	n.Mu.Unlock()
 	if targetNodeIP == n.ipAddress {
 		// defer
-		n.mu.Lock()
+		n.Mu.Lock()
 		if _, found := n.UrlMap[n.ipAddress]; !found { // if not found, make map
 			n.UrlMap[n.ipAddress] = make(map[ShortURL]URLData)
 		}
@@ -561,7 +591,7 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 			Timestamp: time.Now().Unix(),
 		}
 
-		n.mu.Unlock()
+		n.Mu.Unlock()
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
 		return n.ipAddress, nil
 	} else {
@@ -578,12 +608,12 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 		}
 		if reply.MsgType == ACK {
 			ackTimestamp := time.Now().Unix() // Use the current timestamp for cache
-			n.mu.Lock()
+			n.Mu.Lock()
 			n.UrlMap[cacheHash][entry.ShortURL] = URLData{
 				LongURL:   entry.LongURL,
 				Timestamp: ackTimestamp,
 			}
-			n.mu.Unlock()
+			n.Mu.Unlock()
 
 			// fmt.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
 			log.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)

@@ -56,7 +56,7 @@ type RMsg struct {
 }
 
 type Node struct {
-	mu            sync.RWMutex
+	Mu            sync.RWMutex
 	ipAddress     HashableString
 	fixFingerNext int
 	fingerTable   []HashableString
