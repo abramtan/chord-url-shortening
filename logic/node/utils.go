@@ -22,7 +22,8 @@ const (
 	CREATE_SUCCESSOR_LIST      = "create_successor_list"      // Used in RPC call to get node.Successor
 	GET_SUCCESSOR_LIST         = "get_successor_list"         // get the successor's successor list to maintain list
 	NOTIFY                     = "notify"                     // Used to notify a node about a new predecessor.
-	EMPTY                      = "empty"                      // Placeholder or undefined message type or errenous communications.
+    NOTIFY_ACK                 = "notify_ack"                 // Used to ack a "notify", and possibly send the entries that the new predecessor needs to take on.
+    EMPTY                      = "empty"                      // Placeholder or undefined message type or errenous communications.
 	JOIN                       = "join"                       // testing the join function
 	STORE_URL                  = "store_url"                  // Used to store a url in the node.
 	RETRIEVE_URL               = "retrieve_url"               // Used to retrieve a url from the node.
@@ -47,8 +48,8 @@ type RMsg struct {
 	StoreEntry     Entry          // for passing the short/long URL pair to be stored for a ShortURL request
 	RetrieveEntry  Entry          // for passing the retrieved longURL for a RetrieveURL request
 	HopCount       int            // For succList
-	SuccList       []HashableString
-	ReplicaData    map[ShortURL]URLData
+	SuccList       []HashableString // for successors
+	ReplicaData    map[ShortURL]URLData // for replicas
 	Keys           map[ShortURL]URLData // For transferring keys when voluntatily leaving
 	NewPredecessor HashableString       // Informing successor of its new predecessor
 	LastNode       HashableString       // Last node in the successor list of the node leaving
@@ -64,6 +65,7 @@ type Node struct {
 	predecessor   HashableString
 	UrlMap        map[HashableString]map[ShortURL]URLData
 	SuccList      []HashableString
+    FailFlag      bool
 }
 
 type Hash uint64 //[32]byte
