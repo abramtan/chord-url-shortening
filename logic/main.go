@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"logic/node"
+
 	// "math/rand/v2"
 	"net/http"
 	_ "net/http/pprof"
@@ -44,6 +45,7 @@ func main() {
 	longUrlAr := []string{"http://example.com/long4-trial", "www.hello.com", "www.capstone.com", "www.rubbish.com", "www.trouble.com", "www.trouble.com?query=70", "www.distributedsystems.com", "www.golang.com", "www.crying.com"}
 	shortUrlAr := make([]string, 0)
 
+	storeStart := time.Now()
 	for _, val := range longUrlAr {
 		shortVal := string(clientNode.GenerateShortURL(node.LongURL(val)))
 		finalIP := clientNode.ClientSendStoreURL(val, shortVal, nodeAr)
@@ -51,11 +53,14 @@ func main() {
 		log.Println("Reached Final IP", finalIP, "for val", val)
 
 	}
+	storeEnd := time.Now()
+	fmt.Printf("Time taken to store URLs: %v\n", storeEnd.Sub(storeStart))
 
 	time.Sleep(5 * time.Second)
 
+	retrieveStart := time.Now()
 	for _, short := range shortUrlAr {
-		retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr)
+		retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr, "cache")
 
 		log.Println("retrieve entry", retrShort, "found", shortFound)
 		if shortFound {
@@ -65,7 +70,11 @@ func main() {
 		}
 	}
 
+	retrieveEnd := time.Now()
+	fmt.Printf("Time taken to retrieve URLs: %v\n", retrieveEnd.Sub(retrieveStart))
+
 	time.Sleep(5 * time.Second)
+	fmt.Println("nodeAr:",nodeAr)
 
 	log.SetOutput(io.Discard)
 	for _, node := range nodeAr {
@@ -159,30 +168,29 @@ func main() {
 			fmt.Println("Type Long URL to store:")
 			var LONGURL string
 			fmt.Scanln(&LONGURL)
+			storeStart := time.Now()
 			longURLAr = append(longURLAr, node.LongURL(LONGURL))
 			tempShort := string(clientNode.GenerateShortURL(node.LongURL(LONGURL)))
 			shortURLAr = append(shortURLAr, node.ShortURL(tempShort))
 			successIP := clientNode.ClientSendStoreURL(LONGURL, tempShort, nodeAr) // selects random Node to send to
 			fmt.Println("Reached Final IP", successIP)
+			storeEnd := time.Now()
+			fmt.Printf("Time taken to store URLs: %v\n", storeEnd.Sub(storeStart))
 		case "RETRIEVE":
 			var SHORTURL string
 			fmt.Println(shortURLAr)
 			fmt.Println("Type Short URL to retrieve:")
 			fmt.Scanln(&SHORTURL)
-			sFound := slices.Contains(shortURLAr, node.ShortURL(SHORTURL))
-			if !sFound {
-				fmt.Println("Invalid ShortURL")
-				fmt.Println("Type Short URL to retrieve:")
+			for !slices.Contains(shortURLAr, node.ShortURL(SHORTURL)) {
+				fmt.Println("Invalid ShortURL. Please try again:")
 				fmt.Scanln(&SHORTURL)
 			}
-			acquiredURL, found := clientNode.ClientRetrieveURL(SHORTURL, nodeAr)
-
-			fmt.Println("retrieve entry", acquiredURL, "found", found)
-			if found {
-				fmt.Printf("URL Retrieved: %s -> %s\n", acquiredURL.ShortURL, acquiredURL.LongURL)
-			} else {
-				fmt.Println("URL not found")
-			}
+		
+			// Retrieve and measure time for both "nocache" and "cache" modes
+			retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "nocache")
+			retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "cache")
+			
+			
 		case "LONGURL":
 			fmt.Println(longURLAr)
 		case "SHOW":
@@ -200,7 +208,24 @@ func main() {
 		default:
 			fmt.Println("Invalid input...")
 		}
+	}	
+}
+
+func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.Node, retrievalMode string) {
+	fmt.Println("Retrieving URL using mode:", retrievalMode)
+	retrieveStart := time.Now()
+
+	acquiredURL, found := clientNode.ClientRetrieveURL(shortURL, nodeAr, retrievalMode)
+	retrieveEnd := time.Now()
+
+	fmt.Println("retrieve entry", acquiredURL, "found", found)
+	if found {
+		fmt.Printf("URL Retrieved: %s -> %s\n", acquiredURL.ShortURL, acquiredURL.LongURL)
+	} else {
+		fmt.Println("URL not found")
 	}
+
+	fmt.Printf("Time taken to retrieve URL using %s: %v\n", retrievalMode, retrieveEnd.Sub(retrieveStart))
 }
 
 /* Show a list of options to choose from.*/

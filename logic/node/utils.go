@@ -54,6 +54,7 @@ type RMsg struct {
 	NewPredecessor HashableString       // Informing successor of its new predecessor
 	LastNode       HashableString       // Last node in the successor list of the node leaving
 	Timestamp      int64
+	cacheString	   string
 }
 
 type Node struct {
@@ -269,7 +270,7 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 	return reply.TargetIP
 }
 
-func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node) (Entry, bool) {
+func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool string) (Entry, bool) {
 	// longURL := LongURL(longUrl)
 	shortURL := ShortURL(shortUrl)
 
@@ -282,6 +283,7 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node) (Entry, bool) 
 		SenderIP:      n.GetIPAddress(),
 		RecieverIP:    callNode.GetIPAddress(),
 		RetrieveEntry: Entry{ShortURL: shortURL, LongURL: nilLongURL()},
+		cacheString:   cacheBool,
 	}
 
 	log.Printf("Client sending CLIENT_RETRIEVE_URL message to Node %s\n", callNode.GetIPAddress())
