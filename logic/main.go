@@ -42,14 +42,14 @@ func main() {
 	clientNode := node.InitClient()
 
 	// store an array of long urls
-	longUrlAr := []string{"http://example.com/long4-trial", "www.hello.com", "www.capstone.com", "www.rubbish.com", "www.trouble.com", "www.trouble.com?query=70", "www.distributedsystems.com", "www.golang.com", "www.crying.com"}
-	shortUrlAr := make([]string, 0)
+	insertLong := []string{"http://example.com/long4-trial", "www.hello.com", "www.capstone.com", "www.rubbish.com", "www.trouble.com", "www.trouble.com?query=70", "www.distributedsystems.com", "www.golang.com", "www.crying.com"}
+	insertShort := make([]string, 0)
 
 	storeStart := time.Now()
-	for _, val := range longUrlAr {
+	for _, val := range insertLong {
 		shortVal := string(clientNode.GenerateShortURL(node.LongURL(val)))
 		finalIP := clientNode.ClientSendStoreURL(val, shortVal, nodeAr)
-		shortUrlAr = append(shortUrlAr, shortVal)
+		insertShort = append(insertShort, shortVal)
 		log.Println("Reached Final IP", finalIP, "for val", val)
 
 	}
@@ -59,7 +59,7 @@ func main() {
 	time.Sleep(5 * time.Second)
 
 	retrieveStart := time.Now()
-	for _, short := range shortUrlAr {
+	for _, short := range insertShort {
 		retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr, "cache")
 
 		fmt.Println("retrieve entry", retrShort, "found", shortFound)
@@ -91,7 +91,8 @@ func main() {
 
 	// force program to wait
 	longURLAr := make([]node.LongURL, 0)
-	shortURLAr := make([]node.ShortURL, 0)
+	shortURLAr := make([]string, 0)
+	shortURLAr = append(shortURLAr, insertShort...)
 
 	time.Sleep(1500)
 	showmenu()
@@ -162,7 +163,7 @@ func main() {
 			storeStart := time.Now()
 			longURLAr = append(longURLAr, node.LongURL(LONGURL))
 			tempShort := string(clientNode.GenerateShortURL(node.LongURL(LONGURL)))
-			shortURLAr = append(shortURLAr, node.ShortURL(tempShort))
+			shortURLAr = append(shortURLAr, tempShort)
 			successIP := clientNode.ClientSendStoreURL(LONGURL, tempShort, nodeAr) // selects random Node to send to
 			fmt.Println("Reached Final IP", successIP)
 			storeEnd := time.Now()
@@ -172,7 +173,7 @@ func main() {
 			fmt.Println(shortURLAr)
 			fmt.Println("Type Short URL to retrieve:")
 			fmt.Scanln(&SHORTURL)
-			for !slices.Contains(shortURLAr, node.ShortURL(SHORTURL)) {
+			for !slices.Contains(shortURLAr, SHORTURL) {
 				fmt.Println("Invalid ShortURL. Please try again:")
 				fmt.Scanln(&SHORTURL)
 			}
@@ -184,16 +185,23 @@ func main() {
 		case "LONGURL":
 			fmt.Println(longURLAr)
 		case "SHOW":
-			for _, node := range nodeAr {
-				node.Mu.Lock()
+			for _, printNode := range nodeAr {
+				printNode.Mu.Lock()
 				fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 				// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
-				fmt.Println("IP Address: ", node.GetIPAddress())
-				fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
-				fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
-				fmt.Println("Successor List:", node.SuccList)
-				fmt.Println("URLMap:", node.UrlMap)
-				node.Mu.Unlock()
+				fmt.Println("IP Address: ", printNode.GetIPAddress())
+				fmt.Println("Fix Finger Count:", printNode.GetFixFingerCount(), " --- Finger Table:", printNode.GetFingerTable())
+				fmt.Println("Successor:", printNode.GetSuccessor(), " --- Predecessor:", printNode.GetPredecessor())
+				fmt.Println("Successor List:", printNode.SuccList)
+				// fmt.Println("URLMap:", node.UrlMap)
+				fmt.Println("URLMap:")
+				for hashString, mapVal := range printNode.UrlMap {
+					fmt.Println("   for node:", hashString, "-- HASH:", hashString.GenerateHash())
+					for short, long := range mapVal {
+						fmt.Println("       for short, long:", short, long, "-- SHORT HASH:", node.HashableString(short).GenerateHash())
+					}
+				}
+				printNode.Mu.Unlock()
 			}
 		case "MENU":
 			showmenu()

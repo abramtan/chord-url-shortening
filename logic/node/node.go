@@ -89,10 +89,10 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		nPrime := msg.SenderIP
 		node.Notify(nPrime)
 		reply.MsgType = ACK
-    case NOTIFY_ACK:
+	case NOTIFY_ACK:
 		log.Println("Received NOTIFY_ACK message")
-        node.receiveShiftKeys(msg.Keys)
-        reply.MsgType = ACK
+		node.receiveShiftKeys(msg.Keys)
+		reply.MsgType = ACK
 	case PING:
 		log.Println("Received PING message")
 		reply.MsgType = ACK
@@ -246,7 +246,6 @@ func (n *Node) customAccept(server *rpc.Server, lis net.Listener) {
 
 		// Reject connections based on custom logic
 		if n.FailFlag {
-			// fmt.Println(n.ipAddress, "reject call from", conn)
 			conn.Close()
 			continue
 		}
@@ -360,9 +359,9 @@ func (n *Node) stabilise() {
 }
 
 func (n *Node) receiveShiftKeys(transferKeys map[ShortURL]URLData) {
-    n.Mu.Lock()
-    n.UrlMap[n.ipAddress] = transferKeys
-    n.Mu.Unlock() 
+	n.Mu.Lock()
+	n.UrlMap[n.ipAddress] = transferKeys
+	n.Mu.Unlock()
 }
 
 func (n *Node) fixFingers() {
@@ -531,38 +530,38 @@ func (node *Node) Notify(nPrime HashableString) {
 		update = true
 	}
 
-    node.Mu.Unlock()
+	node.Mu.Unlock()
 	if update {
-        // if node.pred updates send keys
-        transferKey := make(map[ShortURL]URLData, 0)
-        keepKey := make(map[ShortURL]URLData, 0)
+		// if node.pred updates send keys
+		transferKey := make(map[ShortURL]URLData, 0)
+		keepKey := make(map[ShortURL]URLData, 0)
 		// check which exists between itself and pred
 		for short, long := range node.UrlMap[node.ipAddress] {
 			log.Println(short, long)
-			if !HashableString(short).GenerateHash().inBetween(node.ipAddress.GenerateHash(), node.predecessor.GenerateHash(), false) { // the last bool param should not matter, since it is the exact id of the new joining node
+			if !HashableString(short).GenerateHash().inBetween(node.predecessor.GenerateHash(), node.ipAddress.GenerateHash(), false) { // the last bool param should not matter, since it is the exact id of the new joining node
 				transferKey[short] = long
 			} else {
 				keepKey[short] = long
 			}
 		}
 
-        transferKeyMsg := RMsg{
-            MsgType: NOTIFY_ACK,
-            SenderIP: node.ipAddress,
-            RecieverIP: nPrime,
-            Keys: transferKey,
-        }
+		transferKeyMsg := RMsg{
+			MsgType:    NOTIFY_ACK,
+			SenderIP:   node.ipAddress,
+			RecieverIP: nPrime,
+			Keys:       transferKey,
+		}
 
-        reply, err := node.CallRPC(transferKeyMsg, string(nPrime))
-        if err != nil {
-            log.Printf("Something went wrong during notify shift keys")
-        }
+		reply, err := node.CallRPC(transferKeyMsg, string(nPrime))
+		if err != nil {
+			log.Printf("Something went wrong during notify shift keys")
+		}
 
-        if reply.MsgType == ACK {
-            node.Mu.Lock()
-            node.UrlMap[node.ipAddress] = keepKey
-            node.Mu.Unlock()
-        }
+		if reply.MsgType == ACK {
+			node.Mu.Lock()
+			node.UrlMap[node.ipAddress] = keepKey
+			node.Mu.Unlock()
+		}
 	}
 
 	// node.Mu.Unlock()
