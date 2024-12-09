@@ -62,11 +62,11 @@ func main() {
 	for _, short := range shortUrlAr {
 		retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr, "cache")
 
-		log.Println("retrieve entry", retrShort, "found", shortFound)
+		fmt.Println("retrieve entry", retrShort, "found", shortFound)
 		if shortFound {
-			log.Printf("URL Retrieved: %s -> %s\n", string(retrShort.ShortURL), retrShort.LongURL)
+			fmt.Printf("URL Retrieved: %s -> %s\n", string(retrShort.ShortURL), retrShort.LongURL)
 		} else {
-			log.Println("URL not found")
+			fmt.Println("URL not found")
 		}
 	}
 
@@ -102,15 +102,13 @@ func main() {
 		time.Sleep(5 * time.Millisecond)
 		var input string
 		fmt.Println("***************************************************************************")
-		fmt.Println(" 	 Enter ADD, DEL, STORE, RETRIEVE, FAULT, FIX, SHOW, LONGURL, MENU:  	")
+		fmt.Println("   Enter ADD, DEL, STORE, RETRIEVE, FAULT, FIX, SHOW, LONGURL, MENU:  	")
 		fmt.Println("***************************************************************************")
 		fmt.Scanln(&input)
 
 		switch input {
 		case "ADD":
-			fmt.Println("Add a Node:")
-			var IP string
-			fmt.Scanln(&IP)
+			fmt.Println("Adding a random new Node")
 			newNode := node.InitNode(&nodeAr)
 			go newNode.Maintain()  // fix_fingers, stabilise, check_pred
 			newNode.InitSuccList() // TODO: should this be here?

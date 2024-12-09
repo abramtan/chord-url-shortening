@@ -531,10 +531,11 @@ func (node *Node) Notify(nPrime HashableString) {
 		update = true
 	}
 
-	// if node.pred updates send keys
-	transferKey := make(map[ShortURL]URLData, 0)
-	keepKey := make(map[ShortURL]URLData, 0)
+    node.Mu.Unlock()
 	if update {
+        // if node.pred updates send keys
+        transferKey := make(map[ShortURL]URLData, 0)
+        keepKey := make(map[ShortURL]URLData, 0)
 		// check which exists between itself and pred
 		for short, long := range node.UrlMap[node.ipAddress] {
 			log.Println(short, long)
@@ -544,27 +545,27 @@ func (node *Node) Notify(nPrime HashableString) {
 				keepKey[short] = long
 			}
 		}
+
+        transferKeyMsg := RMsg{
+            MsgType: NOTIFY_ACK,
+            SenderIP: node.ipAddress,
+            RecieverIP: nPrime,
+            Keys: transferKey,
+        }
+
+        reply, err := node.CallRPC(transferKeyMsg, string(nPrime))
+        if err != nil {
+            log.Printf("Something went wrong during notify shift keys")
+        }
+
+        if reply.MsgType == ACK {
+            node.Mu.Lock()
+            node.UrlMap[node.ipAddress] = keepKey
+            node.Mu.Unlock()
+        }
 	}
 
-	node.Mu.Unlock()
-
-	transferKeyMsg := RMsg{
-		MsgType: NOTIFY_ACK,
-        SenderIP: node.ipAddress,
-        RecieverIP: nPrime,
-        Keys: transferKey,
-	}
-
-    reply, err := node.CallRPC(transferKeyMsg, string(nPrime))
-    if err != nil {
-        log.Printf("Something went wrong during notify shift keys")
-    }
-
-    if reply.MsgType == ACK {
-		node.Mu.Lock()
-        node.UrlMap[node.ipAddress] = keepKey
-		node.Mu.Unlock()
-    }
+	// node.Mu.Unlock()
 }
 
 func (n *Node) CreateNetwork() {
