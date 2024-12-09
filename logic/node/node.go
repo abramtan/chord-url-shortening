@@ -87,9 +87,12 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case NOTIFY:
 		log.Println("Received NOTIFY message")
 		nPrime := msg.SenderIP
-		keySet := node.Notify(nPrime)
-		reply.MsgType = NOTIFY_ACK
-		reply.Keys = keySet
+		node.Notify(nPrime)
+		reply.MsgType = ACK
+    case NOTIFY_ACK:
+		log.Println("Received NOTIFY_ACK message")
+        node.receiveShiftKeys(msg.Keys)
+        reply.MsgType = ACK
 	case PING:
 		log.Println("Received PING message")
 		reply.MsgType = ACK
@@ -356,6 +359,12 @@ func (n *Node) stabilise() {
 	}
 }
 
+func (n *Node) receiveShiftKeys(transferKeys map[ShortURL]URLData) {
+    n.Mu.Lock()
+    n.UrlMap[n.ipAddress] = transferKeys
+    n.Mu.Unlock() 
+}
+
 func (n *Node) fixFingers() {
 	n.Mu.Lock()
 	n.fixFingerNext++
@@ -505,7 +514,7 @@ func (node *Node) StoreReplica(replicaMsg *RMsg) {
 	log.Println("ADDING REPLICA DATA")
 }
 
-func (node *Node) Notify(nPrime HashableString) map[ShortURL]URLData {
+func (node *Node) Notify(nPrime HashableString) {
 	node.Mu.Lock()
 	update := false
 	if node.predecessor.isNil() {
@@ -524,19 +533,38 @@ func (node *Node) Notify(nPrime HashableString) map[ShortURL]URLData {
 
 	// if node.pred updates send keys
 	transferKey := make(map[ShortURL]URLData, 0)
+	keepKey := make(map[ShortURL]URLData, 0)
 	if update {
 		// check which exists between itself and pred
 		for short, long := range node.UrlMap[node.ipAddress] {
 			log.Println(short, long)
 			if !HashableString(short).GenerateHash().inBetween(node.ipAddress.GenerateHash(), node.predecessor.GenerateHash(), false) { // the last bool param should not matter, since it is the exact id of the new joining node
 				transferKey[short] = long
+			} else {
+				keepKey[short] = long
 			}
 		}
 	}
 
 	node.Mu.Unlock()
 
-	return transferKey
+	transferKeyMsg := RMsg{
+		MsgType: NOTIFY_ACK,
+        SenderIP: node.ipAddress,
+        RecieverIP: nPrime,
+        Keys: transferKey,
+	}
+
+    reply, err := node.CallRPC(transferKeyMsg, string(nPrime))
+    if err != nil {
+        log.Printf("Something went wrong during notify shift keys")
+    }
+
+    if reply.MsgType == ACK {
+		node.Mu.Lock()
+        node.UrlMap[node.ipAddress] = keepKey
+		node.Mu.Unlock()
+    }
 }
 
 func (n *Node) CreateNetwork() {

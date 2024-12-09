@@ -109,6 +109,8 @@ func main() {
 		switch input {
 		case "ADD":
 			fmt.Println("Add a Node:")
+			var IP string
+			fmt.Scanln(&IP)
 			newNode := node.InitNode(&nodeAr)
 			go newNode.Maintain()  // fix_fingers, stabilise, check_pred
 			newNode.InitSuccList() // TODO: should this be here?
