@@ -74,29 +74,9 @@ func main() {
 	fmt.Printf("Time taken to retrieve URLs: %v\n", retrieveEnd.Sub(retrieveStart))
 
 	time.Sleep(5 * time.Second)
-	fmt.Println("nodeAr:",nodeAr)
+	fmt.Println("nodeAr:", nodeAr)
 
 	log.SetOutput(io.Discard)
-	for _, node := range nodeAr {
-		node.Mu.Lock()
-		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-		// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
-		fmt.Println("IP Address: ", node.GetIPAddress())
-		fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
-		fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
-		fmt.Println("Successor List:", node.SuccList)
-		fmt.Println("URLMap:", node.UrlMap)
-		node.Mu.Unlock()
-	}
-
-	fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-	leavenode := nodeAr[len(nodeAr)-2]
-	fmt.Printf("%+v -- LEAVING: %+v\n", leavenode, leavenode.GetIPAddress().GenerateHash())
-
-	leavenode.Leave()
-	nodeAr = append(nodeAr[:len(nodeAr)-2], nodeAr[len(nodeAr)-1:]...)
-	time.Sleep(2000)
-	fmt.Printf("NODE %s LEFT\n", leavenode.GetIPAddress())
 	for _, node := range nodeAr {
 		node.Mu.Lock()
 		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -133,7 +113,18 @@ func main() {
 			go newNode.Maintain()  // fix_fingers, stabilise, check_pred
 			newNode.InitSuccList() // TODO: should this be here?
 		case "DEL":
-			fmt.Println("Not Implemented Yet -- Should be Voluntary Leaving")
+			fmt.Println("Type IP Address of Node to Leave:")
+			var IP string
+			fmt.Scanln(&IP)
+			idx := slices.IndexFunc(nodeAr, func(n *node.Node) bool { return string(n.GetIPAddress()) == IP })
+			if idx != -1 {
+				leaveNode := nodeAr[idx]
+				fmt.Println("Faulting Node", leaveNode.GetIPAddress())
+				leaveNode.Leave()
+				nodeAr = append(nodeAr[:idx], nodeAr[idx+1:]...)
+			} else {
+				fmt.Println("Invalid IP Address of Node")
+			}
 		case "FAULT":
 			fmt.Println("Type IP Address of Node to Fault:")
 			var IP string
@@ -185,12 +176,11 @@ func main() {
 				fmt.Println("Invalid ShortURL. Please try again:")
 				fmt.Scanln(&SHORTURL)
 			}
-		
+
 			// Retrieve and measure time for both "nocache" and "cache" modes
 			retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "nocache")
 			retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "cache")
-			
-			
+
 		case "LONGURL":
 			fmt.Println(longURLAr)
 		case "SHOW":
@@ -210,7 +200,7 @@ func main() {
 		default:
 			fmt.Println("Invalid input...")
 		}
-	}	
+	}
 }
 
 func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.Node, retrievalMode string) {
