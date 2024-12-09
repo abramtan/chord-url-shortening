@@ -64,9 +64,67 @@ type Node struct {
 	fingerTable   []HashableString
 	successor     HashableString
 	predecessor   HashableString
-	UrlMap        map[HashableString]map[ShortURL]URLData
+	UrlMap        URLMap
 	SuccList      []HashableString
     FailFlag      bool
+}
+
+type URLMap struct {
+	Mu sync.Mutex
+	UrlMap map[HashableString]map[ShortURL]URLData
+}
+
+// func (m *URLMap) copy() map[HashableString]map[ShortURL]URLData {
+// 	m.Mu.Lock()
+// 	defer m.M
+// 	res := make(map[HashableString]map[ShortURL]URLData)
+// 	for k,v
+// }
+
+func (m *URLMap) copyChild(idx HashableString) (map[ShortURL]URLData, bool) {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+	newMap := make(map[ShortURL]URLData)
+	target, found := m.UrlMap[idx]
+	if found {
+		for k,v := range(target) {
+			newMap[k] = v
+		}
+		return newMap, found
+	}
+	return nil, found
+}
+
+func (m *URLMap) copyGrandchild(idx HashableString, childIdx ShortURL) (URLData, bool) {
+	res, found := m.copyChild(idx)
+	if found {
+		res2, found2 := res[childIdx]
+		return res2, found2
+	} else {
+		return URLData{}, found
+	}
+}
+
+func (m *URLMap) copyGrandchildWithoutFoundCheck(idx HashableString, childIdx ShortURL) URLData {
+	res, _ := m.copyGrandchild(idx, childIdx)
+	return res
+}
+
+func (m *URLMap) copyChildWithoutFoundCheck(idx HashableString) map[ShortURL]URLData {
+	res, _ := m.copyChild(idx)
+	return res
+}
+
+func (m *URLMap) update(idx HashableString, entry map[ShortURL]URLData) {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+	m.UrlMap[idx] = entry
+}
+
+func (m *URLMap) updateChild(idx HashableString, childIdx ShortURL, entry URLData) {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+	m.UrlMap[idx][childIdx] = entry
 }
 
 type Hash uint64 //[32]byte
@@ -159,8 +217,8 @@ func (n *Node) GetPredecessor() HashableString {
 	return n.predecessor
 }
 
-func (n *Node) GetURLMap() map[HashableString]map[ShortURL]URLData {
-	return n.UrlMap
+func (n *Node) GetURLMap() *URLMap {
+	return &n.UrlMap
 }
 
 func (n *Node) GetSuccList() []HashableString {

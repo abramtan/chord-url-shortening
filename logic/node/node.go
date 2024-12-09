@@ -53,19 +53,19 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		reply.MsgType = ACK
 	case STORE_URL:
 		// TODO: Error checking in case it's the shortURL hash is not actually for this node?
-		node.Mu.Lock()
+		// node.Mu.Lock()
 		entry := msg.StoreEntry
-		_, mapFound := node.UrlMap[node.ipAddress]
-		node.Mu.Unlock()
+		_, mapFound := node.UrlMap.copyChild(node.ipAddress)//node.UrlMap[node.ipAddress]
+		// node.Mu.Unlock()
 		if mapFound {
-			node.Mu.Lock()
-			node.UrlMap[node.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()}
-			node.Mu.Unlock()
+			// node.Mu.Lock()
+			node.UrlMap.updateChild(node.ipAddress, entry.ShortURL, URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()})
+			// node.Mu.Unlock()
 		} else {
-			node.Mu.Lock()
-			node.UrlMap[node.ipAddress] = make(map[ShortURL]URLData)
-			node.UrlMap[node.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()}
-			node.Mu.Unlock()
+			// node.Mu.Lock()
+			node.UrlMap.update(node.ipAddress, make(map[ShortURL]URLData))
+			node.UrlMap.updateChild(node.ipAddress, entry.ShortURL, URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()})
+			// node.Mu.Unlock()
 		}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
 		// send appropiate reply back to the initial node that the client contacted
@@ -74,9 +74,9 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case RETRIEVE_URL:
 		log.Println("Received RETRIEVE_URL message")
 		ShortURL := msg.RetrieveEntry.ShortURL
-        node.Mu.Lock()
-		URLDataFound, found := node.UrlMap[node.ipAddress][ShortURL]
-        node.Mu.Unlock()
+        // node.Mu.Lock()
+		URLDataFound, found := node.UrlMap.copyGrandchild(node.ipAddress, ShortURL)
+        // node.Mu.Unlock()
 		log.Println("AFTER RECV, RETRIEVED LONGURL", URLDataFound)
 		if found {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: URLDataFound.LongURL}
@@ -222,11 +222,11 @@ func (n *Node) MaintainSuccList() {
 	successorSuccList := reply.SuccList
 	n.SuccList = append([]HashableString{n.successor}, successorSuccList[:len(successorSuccList)-1]...) // Exclude the last element
 	currMap := n.SuccList
-	replicaData := n.UrlMap[n.ipAddress]
-    replicaDataCopy := make(map[ShortURL]URLData)
-    for k,v := range(replicaData) {
-        replicaDataCopy[k] = v
-    }
+	replicaData := n.UrlMap.copyChildWithoutFoundCheck(n.ipAddress)
+    // replicaDataCopy := make(map[ShortURL]URLData)
+    // for k,v := range(replicaData) {
+    //     replicaDataCopy[k] = v
+    // }
 	n.Mu.Unlock()
 
 	for _, succIP := range currMap {
@@ -234,7 +234,7 @@ func (n *Node) MaintainSuccList() {
 			MsgType:     SEND_REPLICA_DATA,
 			SenderIP:    n.ipAddress,
 			RecieverIP:  succIP,
-			ReplicaData: replicaDataCopy,
+			ReplicaData: replicaData,
 			Timestamp:   time.Now().Unix(),
 		}
 		log.Println("INFO: sendSuccData: ", sendSuccData)
@@ -283,7 +283,7 @@ func InitNode(nodeAr *[]*Node) *Node {
 		// id:          IPAddress(addr).GenerateHash(M),
 		ipAddress:   HashableString(addr),
 		fingerTable: make([]HashableString, M), // this is the length of the finger table 2**M
-		UrlMap:      make(map[HashableString]map[ShortURL]URLData),
+		UrlMap:      URLMap{UrlMap:make(map[HashableString]map[ShortURL]URLData)}, // TODO: mutex?
 		SuccList:    make([]HashableString, REPLICAS),
 		FailFlag:    false,
 	}
@@ -372,9 +372,9 @@ func (n *Node) stabilise() {
 }
 
 func (n *Node) receiveShiftKeys(transferKeys map[ShortURL]URLData) {
-    n.Mu.Lock()
-    n.UrlMap[n.ipAddress] = transferKeys
-    n.Mu.Unlock() 
+    // n.Mu.Lock()
+    n.UrlMap.update(n.ipAddress, transferKeys)
+    // n.Mu.Unlock() 
 }
 
 func (n *Node) fixFingers() {
@@ -436,7 +436,7 @@ func (n *Node) Leave() {
 		MsgType:        NOTIFY_SUCCESSOR_LEAVING,
 		SenderIP:       n.ipAddress,
 		RecieverIP:     n.successor,
-		Keys:           n.UrlMap[n.ipAddress],
+		Keys:           n.UrlMap.copyChildWithoutFoundCheck(n.ipAddress),
 		NewPredecessor: n.predecessor,
 	}
 	successorReply, err := n.CallRPC(voluntaryLeaveSuccessorMsg, string(n.successor)) // RPC call to successor
@@ -472,7 +472,7 @@ func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]URLData, newPredecess
 	n.Mu.Lock()
 	fmt.Printf("Message received, original map is %v, predecessor is %s\n", n.UrlMap, n.predecessor)
 	for k, v := range keys {
-		n.UrlMap[n.ipAddress][k] = v
+        n.UrlMap.updateChild(n.ipAddress, k, v)
 	}
 	n.predecessor = newPredecessor
 	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap, n.predecessor)
@@ -503,7 +503,7 @@ func (node *Node) StoreReplica(replicaMsg *RMsg) {
 	timestamp := time.Now().Unix()
 
 	// replica, replicaFound := node.UrlMap[senderNode]
-	node.UrlMap[senderNode] = make(map[ShortURL]URLData)
+    node.UrlMap.update(senderNode, make(map[ShortURL]URLData))
 
 	// if !replicaFound {
 	// 	node.UrlMap[senderNode] = make(map[ShortURL]URLData)
@@ -517,10 +517,10 @@ func (node *Node) StoreReplica(replicaMsg *RMsg) {
 	// node.UrlMap[senderNode] = replicaMsg.ReplicaData
 
 	for short, URLDataFound := range replicaMsg.ReplicaData {
-		node.UrlMap[senderNode][short] = URLData{
+        node.UrlMap.updateChild(senderNode, short, URLData{
 			LongURL:   URLDataFound.LongURL,
 			Timestamp: timestamp,
-		}
+		})
 	}
 
 	log.Println("ADDING REPLICA DATA")
@@ -549,9 +549,9 @@ func (node *Node) Notify(nPrime HashableString) {
         transferKey := make(map[ShortURL]URLData, 0)
         keepKey := make(map[ShortURL]URLData, 0)
 		// check which exists between itself and pred
-		node.Mu.Lock()
-		currMap := node.UrlMap[node.ipAddress]
-		node.Mu.Unlock()
+		// node.Mu.Lock()
+		currMap := node.UrlMap.copyChildWithoutFoundCheck(node.ipAddress)
+		// node.Mu.Unlock()
 		for short, long := range currMap {
 			log.Println(short, long)
 			if !HashableString(short).GenerateHash().inBetween(node.ipAddress.GenerateHash(), node.predecessor.GenerateHash(), false) { // the last bool param should not matter, since it is the exact id of the new joining node
@@ -574,9 +574,9 @@ func (node *Node) Notify(nPrime HashableString) {
         }
 
         if reply.MsgType == ACK {
-            node.Mu.Lock()
-            node.UrlMap[node.ipAddress] = keepKey
-            node.Mu.Unlock()
+            // node.Mu.Lock()
+            node.UrlMap.update(node.ipAddress, keepKey)
+            // node.Mu.Unlock()
         }
 	}
 
@@ -669,24 +669,24 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 	targetNodeIP := n.FindSuccessor(HashableString(entry.ShortURL).GenerateHash())
 
 	cacheHash := HashableString("CACHE")
-	n.Mu.Lock()
-	if _, cacheExists := n.UrlMap[cacheHash]; !cacheExists {
-		n.UrlMap[cacheHash] = make(map[ShortURL]URLData)
+	// n.Mu.Lock()
+	if _, cacheExists := n.UrlMap.copyChild(cacheHash); !cacheExists {
+		n.UrlMap.update(cacheHash, make(map[ShortURL]URLData))
 	}
-	n.Mu.Unlock()
+	// n.Mu.Unlock()
 	if targetNodeIP == n.ipAddress {
 		// defer
-		n.Mu.Lock()
-		if _, found := n.UrlMap[n.ipAddress]; !found { // if not found, make map
-			n.UrlMap[n.ipAddress] = make(map[ShortURL]URLData)
+		// n.Mu.Lock()
+		if _, found := n.UrlMap.copyChild(n.ipAddress); !found { // if not found, make map
+            n.UrlMap.update(n.ipAddress, make(map[ShortURL]URLData))
 		}
-		n.UrlMap[n.ipAddress][entry.ShortURL] = URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()}
-		n.UrlMap[cacheHash][entry.ShortURL] = URLData{
+        n.UrlMap.updateChild(n.ipAddress, entry.ShortURL, URLData{LongURL: entry.LongURL, Timestamp: time.Now().Unix()})
+        n.UrlMap.updateChild(cacheHash, entry.ShortURL, URLData{
 			LongURL:   entry.LongURL,
 			Timestamp: time.Now().Unix(),
-		}
+		})
 
-		n.Mu.Unlock()
+		// n.Mu.Unlock()
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
 		return n.GetIPAddress(), nil
 	} else {
@@ -703,12 +703,12 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 		}
 		if reply.MsgType == ACK {
 			ackTimestamp := time.Now().Unix() // Use the current timestamp for cache
-			n.Mu.Lock()
-			n.UrlMap[cacheHash][entry.ShortURL] = URLData{
+			// n.Mu.Lock()
+            n.UrlMap.updateChild(cacheHash, entry.ShortURL, URLData{
 				LongURL:   entry.LongURL,
 				Timestamp: ackTimestamp,
-			}
-			n.Mu.Unlock()
+			})
+			// n.Mu.Unlock()
 
 			// fmt.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
 			log.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
@@ -726,30 +726,30 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 
 	// Attempt retrieval from the primary node
 	if targetNodeIP == n.ipAddress {
-		n.Mu.Lock()
-		URLDataFound, found := n.UrlMap[n.ipAddress][shortUrl]
-		n.Mu.Unlock()
+		// n.Mu.Lock()
+		URLDataFound, found := n.UrlMap.copyGrandchild(n.ipAddress, shortUrl)
+		// n.Mu.Unlock()
 		if found {
 			return URLDataFound.LongURL, true
 		}
 		return nilLongURL(), false
 	}
 
-	n.Mu.Lock()
+	// n.Mu.Lock()
 	cacheHash := HashableString("CACHE")
 	// Step 1 : check if cache exists
-	_, cacheExists := n.UrlMap[cacheHash]
+	_, cacheExists := n.UrlMap.copyChild(cacheHash)
 
 	if !cacheExists { // make
-		n.UrlMap[cacheHash] = make(map[ShortURL]URLData)
+        n.UrlMap.update(cacheHash, make(map[ShortURL]URLData))
 	}
 
-	localEntry, exists := n.UrlMap[cacheHash][shortUrl]
+	localEntry, exists := n.UrlMap.copyGrandchild(cacheHash, shortUrl)
 	localTimestamp := time.Time{}.Unix()
 	if exists {
 		localTimestamp = localEntry.Timestamp
 	}
-	n.Mu.Unlock()
+	// n.Mu.Unlock()
 
 	// send retrieve url message to targetNode
 	retrieveMsg := RMsg{
@@ -769,10 +769,10 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 
 		if !retrievedURL.isNil() {
 			if retrievedTimestamp > 0 && (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
-				n.UrlMap[cacheHash][shortUrl] = URLData{
+                n.UrlMap.updateChild(cacheHash, shortUrl, URLData{
 					LongURL:   retrievedURL,
 					Timestamp: time.Now().Unix(),
-				}
+				})
 				log.Printf("Conflict resolved: Updated local data for %s with newer data.", shortUrl)
 			}
 			return retrievedURL, true
@@ -812,10 +812,10 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		if !retrievedURL.isNil() {
 			// Conflict resolution
 			if retrievedTimestamp > 0 && (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
-				n.UrlMap[cacheHash][shortUrl] = URLData{
+				n.UrlMap.updateChild(cacheHash, shortUrl, URLData{
 					LongURL:   retrievedURL,
 					Timestamp: time.Now().Unix(),
-				}
+				})
 				log.Printf("Conflict resolved: Updated local data for %s with newer data from replica.", shortUrl)
 			}
 			return retrievedURL, true

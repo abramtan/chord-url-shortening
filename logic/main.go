@@ -195,7 +195,7 @@ func main() {
 				fmt.Println("Successor List:", printNode.SuccList)
 				// fmt.Println("URLMap:", node.UrlMap)
 				fmt.Println("URLMap:")
-				for hashString, mapVal := range printNode.UrlMap {
+				for hashString, mapVal := range printNode.UrlMap.UrlMap {
 					fmt.Println("   for node:", hashString, "-- HASH:", hashString.GenerateHash())
 					for short, long := range mapVal {
 						fmt.Println("       for short, long:", short, long, "-- SHORT HASH:", node.HashableString(short).GenerateHash())
