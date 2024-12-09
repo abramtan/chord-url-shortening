@@ -195,6 +195,7 @@ func main() {
 			fmt.Println(longURLAr)
 		case "SHOW":
 			for _, node := range nodeAr {
+				node.Mu.Lock()
 				fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 				// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
 				fmt.Println("IP Address: ", node.GetIPAddress())
@@ -202,6 +203,7 @@ func main() {
 				fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
 				fmt.Println("Successor List:", node.SuccList)
 				fmt.Println("URLMap:", node.UrlMap)
+				node.Mu.Unlock()
 			}
 		case "MENU":
 			showmenu()
