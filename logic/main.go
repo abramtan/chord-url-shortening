@@ -7,6 +7,7 @@ import (
 	"logic/node"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"slices"
 	"time"
 )
@@ -14,7 +15,7 @@ import (
 func main() {
 
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		node.InfoLog.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
 	log.SetOutput(io.Discard)
@@ -34,7 +35,7 @@ func main() {
 
 	time.Sleep(time.Second * 2)
 
-	log.Print("testing for short and long url storing and generation")
+	node.InfoLog.Print("testing for short and long url storing and generation")
 
 	// testing URL Shortening and Retrieval
 	clientNode := node.InitClient()
@@ -48,187 +49,219 @@ func main() {
 		shortVal := string(clientNode.GenerateShortURL(node.LongURL(val)))
 		finalIP := clientNode.ClientSendStoreURL(val, shortVal, nodeAr)
 		insertShort = append(insertShort, shortVal)
-		log.Println("Reached Final IP", finalIP, "for val", val)
-
+		node.InfoLog.Println("Reached Final IP", finalIP, "for val", val)
 	}
 	storeEnd := time.Now()
-	fmt.Printf("Time taken to store URLs: %v\n", storeEnd.Sub(storeStart))
+	node.InfoLog.Printf("---------------------------------------------------------------------\n")
+	node.InfoLog.Printf("Time taken to store URLs: %v\n", storeEnd.Sub(storeStart))
+	node.InfoLog.Printf("---------------------------------------------------------------------\n")
 
 	time.Sleep(5 * time.Second)
 
 	retrieveStart := time.Now()
 	for _, short := range insertShort {
-		retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr, "cache")
-		fmt.Printf("~~~~~~~~~~~~~~~~~\n")
-		fmt.Println("Retrieving Entry:", retrShort, "--- Found:", shortFound)
+		retrShort, _, shortFound := clientNode.ClientRetrieveURL(short, nodeAr, "cache")
+
 		if shortFound {
-			fmt.Printf("URL Retrieved: %s -> %s\n", string(retrShort.ShortURL), retrShort.LongURL)
+			node.InfoLog.Printf("URL Retrieved: %s -> %s\n", string(retrShort.ShortURL), retrShort.LongURL)
 		} else {
-			fmt.Println("URL not found")
+			node.InfoLog.Println("URL not found")
 		}
 	}
 
 	retrieveEnd := time.Now()
-	fmt.Printf("Time taken to retrieve URLs: %v\n", retrieveEnd.Sub(retrieveStart))
+	node.InfoLog.Printf("---------------------------------------------------------------------\n")
+	node.InfoLog.Printf("Time taken to retrieve URLs: %v\n", retrieveEnd.Sub(retrieveStart))
+	node.InfoLog.Printf("---------------------------------------------------------------------\n")
 
 	time.Sleep(5 * time.Second)
-	fmt.Println("nodeAr:", nodeAr)
+	node.InfoLog.Println("nodeAr:", nodeAr)
 
 	log.SetOutput(io.Discard)
-	for _, node := range nodeAr {
-		node.Mu.Lock()
-		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-		fmt.Println("IP Address: ", node.GetIPAddress())
-		fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
-		fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
-		fmt.Println("Successor List:", node.SuccList)
-		fmt.Println("URLMap:", &node.UrlMap)
-		node.Mu.Unlock()
-	}
 
+	menuLog := log.New(os.Stdout, "MENU: ", 0)
 	// force program to wait
 	longURLAr := make([]node.LongURL, 0)
 	shortURLAr := make([]string, 0)
 	shortURLAr = append(shortURLAr, insertShort...)
 
 	time.Sleep(1500)
-	showmenu()
+	showmenu(menuLog)
 
 	for {
 		time.Sleep(5 * time.Millisecond)
 		var input string
-		fmt.Println("***************************************************************************")
-		fmt.Println("   Enter ADD, DEL, STORE, RETRIEVE, FAULT, FIX, SHOW, LONGURL, MENU:  	")
-		fmt.Println("***************************************************************************")
+		menuLog.Println("*******************************************************************************")
+		menuLog.Println("   Enter ADD, DEL, STORE, RETRIEVE, RETRIEVEALL, FAULT, FIX, SHOW, LONGURL, MENU:  	")
+		menuLog.Println("*******************************************************************************")
 		fmt.Scanln(&input)
 
 		switch input {
 		case "ADD":
-			fmt.Println("Adding a random new Node")
+			menuLog.Println("Adding a random new Node")
 			newNode := node.InitNode(&nodeAr)
 			go newNode.Maintain()  // fix_fingers, stabilise, check_pred
 			newNode.InitSuccList() // TODO: should this be here?
 		case "DEL":
-			fmt.Println("Type IP Address of Node to Leave:")
+			menuLog.Println("Type IP Address of Node to Leave:")
 			var IP string
 			fmt.Scanln(&IP)
 			idx := slices.IndexFunc(nodeAr, func(n *node.Node) bool { return string(n.GetIPAddress()) == IP })
 			if idx != -1 {
 				leaveNode := nodeAr[idx]
-				fmt.Println("Faulting Node", leaveNode.GetIPAddress())
+				menuLog.Println("Faulting Node", leaveNode.GetIPAddress())
 				leaveNode.Leave()
 			} else {
-				fmt.Println("Invalid IP Address of Node")
+				menuLog.Println("Invalid IP Address of Node")
 			}
 		case "FAULT":
-			fmt.Println("Type IP Address of Node to Fault:")
+			menuLog.Println("Type IP Address of Node to Fault:")
 			var IP string
 			fmt.Scanln(&IP)
 			idx := slices.IndexFunc(nodeAr, func(n *node.Node) bool { return string(n.GetIPAddress()) == IP })
 			if idx != -1 {
 				faultyNode := nodeAr[idx]
-				fmt.Println("Faulting Node", faultyNode.GetIPAddress())
+				menuLog.Println("Faulting Node", faultyNode.GetIPAddress())
 				faultyNode.Mu.Lock()
 				faultyNode.FailFlag = true
-				fmt.Println(faultyNode)
+				menuLog.Println(faultyNode)
 				faultyNode.Mu.Unlock()
 			} else {
-				fmt.Println("Invalid IP Address of Node")
+				menuLog.Println("Invalid IP Address of Node")
 			}
 		case "FIX":
-			fmt.Println("Type IP Address of Node to Fix:")
+			menuLog.Println("Type IP Address of Node to Fix:")
 			var IP string
 			fmt.Scanln(&IP)
 			idx := slices.IndexFunc(nodeAr, func(n *node.Node) bool { return string(n.GetIPAddress()) == IP })
 			if idx != -1 {
 				faultyNode := nodeAr[idx]
-				fmt.Println("Fixing Node", faultyNode.GetIPAddress())
+				menuLog.Println("Fixing Node", faultyNode.GetIPAddress())
 				faultyNode.Mu.Lock()
 				faultyNode.FailFlag = false
-				fmt.Println(faultyNode)
+				menuLog.Println(faultyNode)
 				faultyNode.Mu.Unlock()
 			} else {
-				fmt.Println("Invalid IP Address of Node")
+				menuLog.Println("Invalid IP Address of Node")
 			}
 		case "STORE":
-			fmt.Println("Type Long URL to store:")
+			menuLog.Println("Type Long URL to store:")
 			var LONGURL string
 			fmt.Scanln(&LONGURL)
+
 			storeStart := time.Now()
 			longURLAr = append(longURLAr, node.LongURL(LONGURL))
 			tempShort := string(clientNode.GenerateShortURL(node.LongURL(LONGURL)))
 			shortURLAr = append(shortURLAr, tempShort)
 			successIP := clientNode.ClientSendStoreURL(LONGURL, tempShort, nodeAr) // selects random Node to send to
-			fmt.Println("Reached Final IP", successIP)
+			menuLog.Println("Reached Final IP", successIP)
 			storeEnd := time.Now()
-			fmt.Printf("Time taken to store URLs: %v\n", storeEnd.Sub(storeStart))
+
+			menuLog.Printf("Time taken to store URLs: %v\n", storeEnd.Sub(storeStart))
 		case "RETRIEVE":
 			var SHORTURL string
-			fmt.Println(shortURLAr)
-			fmt.Println("Type Short URL to retrieve:")
+			menuLog.Println(shortURLAr)
+			menuLog.Println("Type Short URL to retrieve:")
 			fmt.Scanln(&SHORTURL)
 			for !slices.Contains(shortURLAr, SHORTURL) {
-				fmt.Println("Invalid ShortURL. Please try again:")
+				menuLog.Println("Invalid ShortURL. Please try again:")
 				fmt.Scanln(&SHORTURL)
 			}
+
+			menuLog.Printf("~~~~~~~~~~~~~~~~~\n")
+			menuLog.Printf("Retrieving URL: %s\n", SHORTURL)
 
 			// Retrieve and measure time for both "nocache" and "cache" modes
 			retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "nocache")
 			retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "cache")
+		case "RETRIEVEALL":
+			var SHOWLOGS string
+			menuLog.Println("Type 'YES' if you would like to see logs.")
+			fmt.Scanln(&SHOWLOGS)
+			if SHOWLOGS == "YES" {
+				menuLog.Println("Showing Logs...")
+			} else {
+				node.InfoLog.SetOutput(io.Discard)
+			}
+			var noCacheTime time.Duration
+			var cacheTime time.Duration
+			var noCacheCalls int
+			var cacheCalls int
+			numTimes := 20
+			for _, short := range shortURLAr {
+				for i := 0; i < numTimes; i++ {
+					call, time := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
+					noCacheTime += time
+					noCacheCalls += call
+					call, time = retrieveAndMeasure(short, nodeAr, clientNode, "cache")
+					cacheTime += time
+					cacheCalls += call
+				}
+			}
 
+			menuLog.Println("FINAL EXPERIMENT STATISTICS")
+			menuLog.Println("No Cache Time:", noCacheTime, "No Cache Calls:", noCacheCalls, "Average of No Cache Time:", noCacheTime/time.Duration(numTimes*len(shortURLAr)))
+			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", noCacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numTimes*len(shortURLAr)))
+
+			if !(SHOWLOGS == "YES") {
+				node.InfoLog.SetOutput(os.Stdout)
+			}
 		case "LONGURL":
-			fmt.Println(longURLAr)
+			menuLog.Println(longURLAr)
 		case "SHOW":
 			for _, printNode := range nodeAr {
 				printNode.Mu.Lock()
-				fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-				fmt.Println("IP Address: ", printNode.GetIPAddress(), "-- HASH:", printNode.GetIPAddress().GenerateHash())
-				fmt.Println("FFCount:", printNode.GetFixFingerCount(), " -- Finger Table:", printNode.GetFingerTable())
-				fmt.Println("Successor:", printNode.GetSuccessor(), " -- Predecessor:", printNode.GetPredecessor())
-				fmt.Println("Successor List:", printNode.SuccList)
-				fmt.Println("URLMap:")
+				menuLog.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+				menuLog.Println("IP Address: ", printNode.GetIPAddress(), "-- HASH:", printNode.GetIPAddress().GenerateHash())
+				menuLog.Println("FFCount:", printNode.GetFixFingerCount(), " -- Finger Table:", printNode.GetFingerTable())
+				menuLog.Println("Successor:", printNode.GetSuccessor(), " -- Predecessor:", printNode.GetPredecessor())
+				menuLog.Println("Successor List:", printNode.SuccList)
+				menuLog.Println("URLMap:")
 				for hashString, mapVal := range printNode.UrlMap.UrlMap {
-					fmt.Println("   for node:", hashString, "-- HASH:", hashString.GenerateHash())
+					menuLog.Println("   for node:", hashString, "-- HASH:", hashString.GenerateHash())
 					for short, long := range mapVal {
-						fmt.Println("       for short, long:", short, long, "-- SHORT HASH:", node.HashableString(short).GenerateHash())
+						menuLog.Println("       for short, long:", short, long, "-- SHORT HASH:", node.HashableString(short).GenerateHash())
 					}
 				}
 				printNode.Mu.Unlock()
 			}
 		case "MENU":
-			showmenu()
+			showmenu(menuLog)
 		default:
-			fmt.Println("Invalid input...")
+			menuLog.Println("Invalid input...")
 		}
 	}
 }
 
-func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.Node, retrievalMode string) {
-	fmt.Println("Retrieving URL using mode:", retrievalMode)
+func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.Node, retrievalMode string) (int, time.Duration) {
+	node.InfoLog.Println("============================================================")
+	node.InfoLog.Println("Retrieving URL using mode:", retrievalMode)
 	retrieveStart := time.Now()
 
-	acquiredURL, found := clientNode.ClientRetrieveURL(shortURL, nodeAr, retrievalMode)
+	acquiredURL, calls, found := clientNode.ClientRetrieveURL(shortURL, nodeAr, retrievalMode)
 	retrieveEnd := time.Now()
 
-	fmt.Println("retrieve entry", acquiredURL, "found", found)
 	if found {
-		fmt.Printf("URL Retrieved: %s -> %s\n", acquiredURL.ShortURL, acquiredURL.LongURL)
+		node.InfoLog.Printf("URL Retrieved: %s -> %s\n", acquiredURL.ShortURL, acquiredURL.LongURL)
 	} else {
-		fmt.Println("URL not found")
+		node.InfoLog.Println("URL not found")
 	}
 
-	fmt.Printf("Time taken to retrieve URL using %s: %v\n", retrievalMode, retrieveEnd.Sub(retrieveStart))
+	timeTaken := retrieveEnd.Sub(retrieveStart)
+	node.InfoLog.Printf("Time taken to retrieve URL using %s: %v\n", retrievalMode, timeTaken)
+	return calls, timeTaken
 }
 
 /* Show a list of options to choose from.*/
-func showmenu() {
-	fmt.Println("********************************")
-	fmt.Println("\t\tMENU")
-	fmt.Println("Send ADD to add node")
-	fmt.Println("Send DEL to delete a random node")
-	fmt.Println("Send STORE to add a new tinyurl")
-	fmt.Println("Send RETRIEVE to get a long url")
-	fmt.Println("Send LONGURL to get a list of current long urls")
-	fmt.Println("Press MENU to see the menu")
-	fmt.Println("********************************")
+func showmenu(menuLog *log.Logger) {
+	// Enter ADD, DEL, STORE, RETRIEVE, RETRIEVEALL, FAULT, FIX, SHOW, LONGURL, MENU:
+	menuLog.Println("********************************")
+	menuLog.Println("\t\tMENU")
+	menuLog.Println("Send ADD to add node")
+	menuLog.Println("Send DEL to delete a random node")
+	menuLog.Println("Send STORE to add a new tinyurl")
+	menuLog.Println("Send RETRIEVE to get a long url")
+	menuLog.Println("Send LONGURL to get a list of current long urls")
+	menuLog.Println("Press MENU to see the menu")
+	menuLog.Println("********************************")
 }

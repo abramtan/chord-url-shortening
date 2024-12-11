@@ -9,8 +9,11 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/rpc"
+	"os"
 	"sync"
 )
+
+var InfoLog = log.New(os.Stdout, "INFO: ", 0)
 
 // Message types.
 const (
@@ -88,13 +91,6 @@ type Entry struct {
 	LongURL   LongURL
 	Timestamp int64
 }
-
-// func (m *URLMap) copy() map[HashableString]map[ShortURL]URLData {
-// 	m.Mu.Lock()
-// 	defer m.M
-// 	res := make(map[HashableString]map[ShortURL]URLData)
-// 	for k,v
-// }
 
 func (m *URLMap) copyChild(idx HashableString) (map[ShortURL]URLData, bool) {
 	m.Mu.Lock()
@@ -335,11 +331,13 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 		log.Println("Error in ClientSendStoreURL", err)
 	}
 	log.Println("NODE :", reply.TargetIP, "successfully stored shortURL.")
-	fmt.Println("Store Hop Count:", reply.HopCount, "---", "Store Hop Flow:", reply.CheckFlow)
+	InfoLog.Println("***************************************************")
+	InfoLog.Println("Storing LongURL:", longURL)
+	InfoLog.Println("Store Hop Count:", reply.HopCount, "---", "Store Hop Flow:", reply.CheckFlow)
 	return reply.TargetIP
 }
 
-func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool string) (Entry, bool) {
+func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool string) (Entry, int, bool) {
 	// longURL := LongURL(longUrl)
 	shortURL := ShortURL(shortUrl)
 
@@ -353,6 +351,8 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool stri
 		RecieverIP:    callNode.GetIPAddress(),
 		RetrieveEntry: Entry{ShortURL: shortURL, LongURL: nilLongURL()},
 		cacheString:   cacheBool,
+		HopCount:      0,
+		CheckFlow:     make([]HashableString, 0),
 	}
 
 	log.Printf("Client sending CLIENT_RETRIEVE_URL message to Node %s\n", callNode.GetIPAddress())
@@ -361,6 +361,8 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool stri
 	if err != nil {
 		log.Println("Error in ClientRetrieveURL", err)
 	}
-	fmt.Println("Retrieve Hop Count:", reply.HopCount)
-	return reply.RetrieveEntry, !reply.RetrieveEntry.LongURL.isNil()
+	InfoLog.Println("***************************************************")
+	InfoLog.Println("Retrieving Entry:", reply.RetrieveEntry, "--- Found:", !reply.RetrieveEntry.LongURL.isNil())
+	InfoLog.Println("Retrieve Hop Count:", reply.HopCount, "---", "Store Hop Flow:", reply.CheckFlow)
+	return reply.RetrieveEntry, reply.HopCount, !reply.RetrieveEntry.LongURL.isNil()
 }
