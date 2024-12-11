@@ -62,6 +62,7 @@ type RMsg struct {
 	LastNode       HashableString       // Last node in the successor list of the node leaving
 	Timestamp      int64
 	cacheString    string
+	CheckFlow      []HashableString
 }
 
 type Node struct {
@@ -324,6 +325,7 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 		RecieverIP: callNode.GetIPAddress(),
 		StoreEntry: Entry{ShortURL: shortURL, LongURL: longURL},
 		HopCount:   0,
+		CheckFlow:  make([]HashableString, 0),
 	}
 
 	log.Printf("Client sending CLIENT_STORE_URL message to Node %s\n", callNode.GetIPAddress())
@@ -333,7 +335,7 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 		log.Println("Error in ClientSendStoreURL", err)
 	}
 	log.Println("NODE :", reply.TargetIP, "successfully stored shortURL.")
-	fmt.Println("Store Hop Count:", reply.HopCount)
+	fmt.Println("Store Hop Count:", reply.HopCount, "---", "Store Hop Flow:", reply.CheckFlow)
 	return reply.TargetIP
 }
 

@@ -31,17 +31,18 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case FIND_SUCCESSOR_ADD:
 		log.Println("Received FIND SUCCESSOR message")
 		log.Println(msg.TargetHash)
-		successor, curr_hc := node.FindSuccessorAddCount(msg.TargetHash, msg.HopCount) // first value should be the target IP Address
+		successor, curr_hc, currFlow := node.FindSuccessorAddCount(msg.TargetHash, msg.HopCount, msg.CheckFlow) // first value should be the target IP Address
 		reply.TargetIP = successor
 		reply.HopCount = curr_hc
+		reply.CheckFlow = currFlow
 	case CLIENT_STORE_URL:
-		fmt.Printf("Received CLIENT_STORE_URL message")
 		log.Println("Received CLIENT_STORE_URL message")
 		entry := msg.StoreEntry
-		ip, currentHC, err := node.StoreURL(entry, msg.HopCount)
+		ip, currentHC, currFlow, err := node.StoreURL(entry, msg.HopCount, msg.CheckFlow)
 		reply.TargetIP = ip
 		reply.MsgType = ACK
 		reply.HopCount = currentHC
+		reply.CheckFlow = currFlow
 		if err != nil {
 			log.Println(err.Error())
 			reply.MsgType = EMPTY
@@ -77,6 +78,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
 		// send appropiate reply back to the initial node that the client contacted
+		reply.CheckFlow = append(msg.CheckFlow, node.GetIPAddress())
 		reply.HopCount = msg.HopCount + 1
 		reply.TargetIP = node.GetIPAddress()
 		reply.MsgType = ACK
@@ -268,7 +270,6 @@ func (n *Node) customAccept(server *rpc.Server, lis net.Listener) {
 
 		// Reject connections based on custom logic
 		if n.FailFlag {
-			// fmt.Println(n.ipAddress, "reject call from", conn)
 			conn.Close()
 			continue
 		}
@@ -398,7 +399,7 @@ func (n *Node) fixFingers() {
 	convToHash := float64(n.ipAddress.GenerateHash()) + math.Pow(2, float64(n.fixFingerNext))
 	// ensure it doesn't exceed the ring
 	convToHash = math.Mod(float64(convToHash), math.Pow(2, M))
-	successor, _ := n.FindSuccessorAddCount(Hash(convToHash), 0)
+	successor, _, _ := n.FindSuccessorAddCount(Hash(convToHash), 0, make([]HashableString, 0))
 
 	n.Mu.Lock()
 	n.fingerTable[n.fixFingerNext] = successor
@@ -677,7 +678,7 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 // 	return reply.TargetIP
 // }
 
-func (n *Node) FindSuccessorAddCount(targetID Hash, hc int) (HashableString, int) {
+func (n *Node) FindSuccessorAddCount(targetID Hash, hc int, currFlow []HashableString) (HashableString, int, []HashableString) {
 	sizeOfRing := math.Pow(2, M)
 	if targetID > Hash(sizeOfRing) {
 		panic("Bigger than Ring")
@@ -685,6 +686,7 @@ func (n *Node) FindSuccessorAddCount(targetID Hash, hc int) (HashableString, int
 
 	// increase Hop Count
 	hc++
+	currFlow = append(currFlow, n.GetIPAddress())
 
 	n.Mu.Lock()
 	ip := n.ipAddress
@@ -692,12 +694,12 @@ func (n *Node) FindSuccessorAddCount(targetID Hash, hc int) (HashableString, int
 	n.Mu.Unlock()
 
 	if targetID.inBetween(ip.GenerateHash(), succ.GenerateHash(), true) {
-		return succ, hc
+		return succ, hc, currFlow
 	}
 
 	otherNodeIP := n.ClosestPrecedingNode(targetID)
 	if otherNodeIP == ip {
-		return succ, hc
+		return succ, hc, currFlow
 	}
 
 	findSuccMsg := RMsg{
@@ -706,6 +708,7 @@ func (n *Node) FindSuccessorAddCount(targetID Hash, hc int) (HashableString, int
 		RecieverIP: otherNodeIP,
 		TargetHash: targetID,
 		HopCount:   hc,
+		CheckFlow:  currFlow,
 	}
 
 	reply, err := n.CallRPC(findSuccMsg, string(otherNodeIP))
@@ -717,9 +720,10 @@ func (n *Node) FindSuccessorAddCount(targetID Hash, hc int) (HashableString, int
 				n.fingerTable[idx] = HashableString("")
 			}
 		}
-		return n.FindSuccessorAddCount(targetID, hc+1) // add one for the failed RPC call
+		currFlow = append(currFlow, otherNodeIP)
+		return n.FindSuccessorAddCount(targetID, hc+1, currFlow) // add one for the failed RPC call
 	}
-	return reply.TargetIP, reply.HopCount
+	return reply.TargetIP, reply.HopCount, reply.CheckFlow
 }
 
 func (n *Node) ClosestPrecedingNode(targetID Hash) HashableString {
@@ -737,10 +741,11 @@ func (n *Node) ClosestPrecedingNode(targetID Hash) HashableString {
 	return n.ipAddress
 }
 
-func (n *Node) StoreURL(entry Entry, hc int) (HashableString, int, error) {
+func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (HashableString, int, []HashableString, error) {
 	// this handles the correct node to send the entry to
+	fmt.Printf("~~~~~~~~~~~~~~~~~\n")
 	fmt.Printf("Storing URL: %s -> %s\n", entry.ShortURL, entry.LongURL)
-	targetNodeIP, curr_hc := n.FindSuccessorAddCount(HashableString(entry.ShortURL).GenerateHash(), hc)
+	targetNodeIP, curr_hc, storeCurrFlow := n.FindSuccessorAddCount(HashableString(entry.ShortURL).GenerateHash(), hc, currFlow)
 
 	cacheHash := HashableString("CACHE")
 	// n.Mu.Lock()
@@ -762,7 +767,7 @@ func (n *Node) StoreURL(entry Entry, hc int) (HashableString, int, error) {
 
 		// n.Mu.Unlock()
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
-		return n.GetIPAddress(), curr_hc, nil
+		return n.GetIPAddress(), curr_hc, storeCurrFlow, nil
 	} else {
 		storeMsg := RMsg{
 			MsgType:    STORE_URL,
@@ -770,11 +775,12 @@ func (n *Node) StoreURL(entry Entry, hc int) (HashableString, int, error) {
 			RecieverIP: targetNodeIP,
 			StoreEntry: entry,
 			HopCount:   curr_hc,
+			CheckFlow:  storeCurrFlow,
 		}
 		log.Printf("Sending STORE_URL message to Node %s\n", targetNodeIP)
 		reply, err := n.CallRPC(storeMsg, string(targetNodeIP))
 		if err != nil {
-			return nilHashableString(), curr_hc, err
+			return nilHashableString(), curr_hc, storeCurrFlow, err
 		}
 		if reply.MsgType == ACK {
 			ackTimestamp := time.Now().Unix() // Use the current timestamp for cache
@@ -787,10 +793,10 @@ func (n *Node) StoreURL(entry Entry, hc int) (HashableString, int, error) {
 
 			// fmt.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
 			log.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
-			return reply.TargetIP, reply.HopCount, nil
+			return reply.TargetIP, reply.HopCount, reply.CheckFlow, nil
 		}
 	}
-	return nilHashableString(), curr_hc, errors.New("no valid IP address found for storing")
+	return nilHashableString(), curr_hc, storeCurrFlow, errors.New("no valid IP address found for storing")
 }
 
 func (n *Node) RetrieveURL(shortUrl ShortURL, hc int) (LongURL, int, bool) {
@@ -798,7 +804,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int) (LongURL, int, bool) {
 
 	hc++
 	// Find the primary node responsible for the ShortURL
-	targetNodeIP, curr_hc := n.FindSuccessorAddCount(HashableString(shortUrl).GenerateHash(), hc)
+	targetNodeIP, curr_hc, _ := n.FindSuccessorAddCount(HashableString(shortUrl).GenerateHash(), hc, make([]HashableString, 0))
 
 	// Attempt retrieval from the primary node
 	if targetNodeIP == n.ipAddress {

@@ -59,8 +59,8 @@ func main() {
 	retrieveStart := time.Now()
 	for _, short := range insertShort {
 		retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr, "cache")
-
-		fmt.Println("retrieve entry", retrShort, "found", shortFound)
+		fmt.Printf("~~~~~~~~~~~~~~~~~\n")
+		fmt.Println("Retrieving Entry:", retrShort, "--- Found:", shortFound)
 		if shortFound {
 			fmt.Printf("URL Retrieved: %s -> %s\n", string(retrShort.ShortURL), retrShort.LongURL)
 		} else {
