@@ -23,18 +23,25 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case JOIN:
 		log.Println("Received JOIN message")
 		reply.MsgType = ACK
-	case FIND_SUCCESSOR:
+	// case FIND_SUCCESSOR:
+	// 	log.Println("Received FIND SUCCESSOR message")
+	// 	log.Println(msg.TargetHash)
+	// 	successor := node.FindSuccessor(msg.TargetHash) // first value should be the target IP Address
+	// 	reply.TargetIP = successor
+	case FIND_SUCCESSOR_ADD:
 		log.Println("Received FIND SUCCESSOR message")
 		log.Println(msg.TargetHash)
-		successor := node.FindSuccessor(msg.TargetHash) // first value should be the target IP Address
+		successor, curr_hc := node.FindSuccessorAddCount(msg.TargetHash, msg.HopCount) // first value should be the target IP Address
 		reply.TargetIP = successor
+		reply.HopCount = curr_hc
 	case CLIENT_STORE_URL:
 		fmt.Printf("Received CLIENT_STORE_URL message")
 		log.Println("Received CLIENT_STORE_URL message")
 		entry := msg.StoreEntry
-		ip, err := node.StoreURL(entry)
+		ip, currentHC, err := node.StoreURL(entry, msg.HopCount)
 		reply.TargetIP = ip
 		reply.MsgType = ACK
+		reply.HopCount = currentHC
 		if err != nil {
 			log.Println(err.Error())
 			reply.MsgType = EMPTY
@@ -44,12 +51,13 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		node.Mu.Lock()
 		ShortURL := msg.RetrieveEntry.ShortURL
 		node.Mu.Unlock()
-		LongURL, found := node.RetrieveURL(ShortURL)
+		LongURL, currentHC, found := node.RetrieveURL(ShortURL, msg.HopCount)
 		if found {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: LongURL}
 		} else {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: nilLongURL()}
 		}
+		reply.HopCount = currentHC
 		reply.MsgType = ACK
 	case STORE_URL:
 		// TODO: Error checking in case it's the shortURL hash is not actually for this node?
@@ -69,6 +77,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		}
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, node.ipAddress)
 		// send appropiate reply back to the initial node that the client contacted
+		reply.HopCount = msg.HopCount + 1
 		reply.TargetIP = node.GetIPAddress()
 		reply.MsgType = ACK
 	case RETRIEVE_URL:
@@ -83,6 +92,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		} else {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: nilLongURL()}
 		}
+		reply.HopCount = msg.HopCount + 1
 		reply.MsgType = ACK
 	case GET_PREDECESSOR:
 		node.Mu.Lock()
@@ -334,7 +344,7 @@ func (n *Node) stabilise() {
 		reply, err := n.CallRPC(getPredecessorMsg, string(successorIP))
 		if err != nil || reply.TargetIP.isNil() { // err or empty senderIP
 			log.Println("ERROR: Could not get predecessor", err, reply, successorIP)
-			// continue // go to the next successor node ==> error causes all the nodes to take 0.0.0.0:1111
+			// continue // go to the next successor node
 		} else {
 			log.Println("INFO: Predecessor", reply)
 		}
@@ -388,7 +398,7 @@ func (n *Node) fixFingers() {
 	convToHash := float64(n.ipAddress.GenerateHash()) + math.Pow(2, float64(n.fixFingerNext))
 	// ensure it doesn't exceed the ring
 	convToHash = math.Mod(float64(convToHash), math.Pow(2, M))
-	successor := n.FindSuccessor(Hash(convToHash))
+	successor, _ := n.FindSuccessorAddCount(Hash(convToHash), 0)
 
 	n.Mu.Lock()
 	n.fingerTable[n.fixFingerNext] = successor
@@ -414,17 +424,17 @@ func (n *Node) checkPredecessor() {
 		n.Mu.Lock()
 		n.predecessor = nilHashableString()
 
-        ownEntries := n.UrlMap.copyChildWithoutFoundCheck(n.ipAddress)
-        entriesFromPred := n.UrlMap.copyChildWithoutFoundCheck(pred)
-        combinedEntries := make(map[ShortURL]URLData)
-        for k,v := range(ownEntries) {
-            combinedEntries[k] = v
-        }
-        for k,v := range(entriesFromPred) {
-            combinedEntries[k] = v
-        }
-        n.UrlMap.update(n.ipAddress, combinedEntries)
-        n.UrlMap.delete(pred)
+		ownEntries := n.UrlMap.copyChildWithoutFoundCheck(n.ipAddress)
+		entriesFromPred := n.UrlMap.copyChildWithoutFoundCheck(pred)
+		combinedEntries := make(map[ShortURL]URLData)
+		for k, v := range ownEntries {
+			combinedEntries[k] = v
+		}
+		for k, v := range entriesFromPred {
+			combinedEntries[k] = v
+		}
+		n.UrlMap.update(n.ipAddress, combinedEntries)
+		n.UrlMap.delete(pred)
 		n.Mu.Unlock()
 	}
 }
@@ -447,7 +457,7 @@ func (n *Node) Leave() {
 	n.Mu.Lock()
 	n.FailFlag = true
 	n.Mu.Unlock()
-	
+
 	voluntaryLeaveSuccessorMsg := RMsg{
 		MsgType:        NOTIFY_SUCCESSOR_LEAVING,
 		SenderIP:       n.ipAddress,
@@ -486,13 +496,13 @@ func (n *Node) Leave() {
 // Informing successor of voluntary leaving
 func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]URLData, newPredecessor HashableString) {
 	n.Mu.Lock()
-	fmt.Printf("Message received, original map is %v, predecessor is %s\n", n.UrlMap.UrlMap, n.predecessor)
+	fmt.Printf("Message received, original map is %v, predecessor is %s\n", n.UrlMap, n.predecessor)
 	for k, v := range keys {
 		n.UrlMap.updateChild(n.ipAddress, k, v)
 	}
-    n.UrlMap.delete(n.predecessor)
+	n.UrlMap.delete(n.predecessor)
 	n.predecessor = newPredecessor
-	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap.UrlMap, n.predecessor)
+	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap, n.predecessor)
 	n.Mu.Unlock()
 }
 
@@ -610,7 +620,7 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 	n.predecessor = nilHashableString()
 
 	findSuccessorMsg := RMsg{
-		MsgType:    FIND_SUCCESSOR,
+		MsgType:    FIND_SUCCESSOR_ADD,
 		SenderIP:   n.ipAddress,
 		RecieverIP: joiningIP,
 		TargetHash: n.ipAddress.GenerateHash(),
@@ -626,11 +636,55 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 	log.Println("Succesfully Joined Network", n, reply)
 }
 
-func (n *Node) FindSuccessor(targetID Hash) HashableString {
+// func (n *Node) FindSuccessor(targetID Hash) HashableString {
+// 	sizeOfRing := math.Pow(2, M)
+// 	if targetID > Hash(sizeOfRing) {
+// 		panic("Bigger than Ring")
+// 	}
+
+// 	n.Mu.Lock()
+// 	ip := n.ipAddress
+// 	succ := n.successor
+// 	n.Mu.Unlock()
+
+// 	if targetID.inBetween(ip.GenerateHash(), succ.GenerateHash(), true) {
+// 		return succ
+// 	}
+
+// 	otherNodeIP := n.ClosestPrecedingNode(targetID)
+// 	if otherNodeIP == ip {
+// 		return succ
+// 	}
+
+// 	findSuccMsg := RMsg{
+// 		MsgType:    FIND_SUCCESSOR,
+// 		SenderIP:   ip,
+// 		RecieverIP: otherNodeIP,
+// 		TargetHash: targetID,
+// 	}
+
+// 	reply, err := n.CallRPC(findSuccMsg, string(otherNodeIP))
+// 	if reply.TargetIP.isNil() || err != nil {
+// 		// panic(log.Printf("%+v\n", reply))
+// 		// log.Panicln(reply)
+// 		for idx, elem := range n.fingerTable {
+// 			if elem == otherNodeIP {
+// 				n.fingerTable[idx] = HashableString("")
+// 			}
+// 		}
+// 		return n.FindSuccessor(targetID)
+// 	}
+// 	return reply.TargetIP
+// }
+
+func (n *Node) FindSuccessorAddCount(targetID Hash, hc int) (HashableString, int) {
 	sizeOfRing := math.Pow(2, M)
 	if targetID > Hash(sizeOfRing) {
 		panic("Bigger than Ring")
 	}
+
+	// increase Hop Count
+	hc++
 
 	n.Mu.Lock()
 	ip := n.ipAddress
@@ -638,19 +692,20 @@ func (n *Node) FindSuccessor(targetID Hash) HashableString {
 	n.Mu.Unlock()
 
 	if targetID.inBetween(ip.GenerateHash(), succ.GenerateHash(), true) {
-		return succ
+		return succ, hc
 	}
 
 	otherNodeIP := n.ClosestPrecedingNode(targetID)
 	if otherNodeIP == ip {
-		return succ
+		return succ, hc
 	}
 
 	findSuccMsg := RMsg{
-		MsgType:    FIND_SUCCESSOR,
+		MsgType:    FIND_SUCCESSOR_ADD,
 		SenderIP:   ip,
 		RecieverIP: otherNodeIP,
 		TargetHash: targetID,
+		HopCount:   hc,
 	}
 
 	reply, err := n.CallRPC(findSuccMsg, string(otherNodeIP))
@@ -662,9 +717,9 @@ func (n *Node) FindSuccessor(targetID Hash) HashableString {
 				n.fingerTable[idx] = HashableString("")
 			}
 		}
-		return n.FindSuccessor(targetID)
+		return n.FindSuccessorAddCount(targetID, hc+1) // add one for the failed RPC call
 	}
-	return reply.TargetIP
+	return reply.TargetIP, reply.HopCount
 }
 
 func (n *Node) ClosestPrecedingNode(targetID Hash) HashableString {
@@ -682,10 +737,10 @@ func (n *Node) ClosestPrecedingNode(targetID Hash) HashableString {
 	return n.ipAddress
 }
 
-func (n *Node) StoreURL(entry Entry) (HashableString, error) {
+func (n *Node) StoreURL(entry Entry, hc int) (HashableString, int, error) {
 	// this handles the correct node to send the entry to
 	fmt.Printf("Storing URL: %s -> %s\n", entry.ShortURL, entry.LongURL)
-	targetNodeIP := n.FindSuccessor(HashableString(entry.ShortURL).GenerateHash())
+	targetNodeIP, curr_hc := n.FindSuccessorAddCount(HashableString(entry.ShortURL).GenerateHash(), hc)
 
 	cacheHash := HashableString("CACHE")
 	// n.Mu.Lock()
@@ -707,18 +762,19 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 
 		// n.Mu.Unlock()
 		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
-		return n.GetIPAddress(), nil
+		return n.GetIPAddress(), curr_hc, nil
 	} else {
 		storeMsg := RMsg{
 			MsgType:    STORE_URL,
 			SenderIP:   n.ipAddress,
 			RecieverIP: targetNodeIP,
 			StoreEntry: entry,
+			HopCount:   curr_hc,
 		}
 		log.Printf("Sending STORE_URL message to Node %s\n", targetNodeIP)
 		reply, err := n.CallRPC(storeMsg, string(targetNodeIP))
 		if err != nil {
-			return nilHashableString(), err
+			return nilHashableString(), curr_hc, err
 		}
 		if reply.MsgType == ACK {
 			ackTimestamp := time.Now().Unix() // Use the current timestamp for cache
@@ -731,17 +787,18 @@ func (n *Node) StoreURL(entry Entry) (HashableString, error) {
 
 			// fmt.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
 			log.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
-			return reply.TargetIP, nil
+			return reply.TargetIP, reply.HopCount, nil
 		}
 	}
-	return nilHashableString(), errors.New("no valid IP address found for storing")
+	return nilHashableString(), curr_hc, errors.New("no valid IP address found for storing")
 }
 
-func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
+func (n *Node) RetrieveURL(shortUrl ShortURL, hc int) (LongURL, int, bool) {
 	log.Printf("Inside RetrieveURL for ShortURL: %s", shortUrl)
 
+	hc++
 	// Find the primary node responsible for the ShortURL
-	targetNodeIP := n.FindSuccessor(HashableString(shortUrl).GenerateHash())
+	targetNodeIP, curr_hc := n.FindSuccessorAddCount(HashableString(shortUrl).GenerateHash(), hc)
 
 	// Attempt retrieval from the primary node
 	if targetNodeIP == n.ipAddress {
@@ -749,9 +806,9 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		URLDataFound, found := n.UrlMap.copyGrandchild(n.ipAddress, shortUrl)
 		// n.Mu.Unlock()
 		if found {
-			return URLDataFound.LongURL, true
+			return URLDataFound.LongURL, curr_hc, true
 		}
-		return nilLongURL(), false
+		return nilLongURL(), curr_hc, false
 	}
 
 	// n.Mu.Lock()
@@ -776,9 +833,11 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		SenderIP:      n.ipAddress,
 		RecieverIP:    targetNodeIP,
 		RetrieveEntry: Entry{ShortURL: shortUrl, LongURL: nilLongURL(), Timestamp: localTimestamp},
+		HopCount:      curr_hc,
 	}
 
 	reply, err := n.CallRPC(retrieveMsg, string(targetNodeIP))
+	curr_hc = reply.HopCount // Update Hopcount accorind to Retrieve URL hop count
 
 	// if node has no error in it's reply, check the timestamp
 	if err == nil {
@@ -794,9 +853,9 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 				})
 				log.Printf("Conflict resolved: Updated local data for %s with newer data.", shortUrl)
 			}
-			return retrievedURL, true
+			return retrievedURL, curr_hc, true
 		}
-		return nilLongURL(), false
+		return nilLongURL(), curr_hc, false
 	}
 
 	// Primary node failed; query replicas
@@ -811,7 +870,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 	succListReply, err := n.CallRPC(succListMsg, string(targetNodeIP))
 	if err != nil {
 		log.Printf("Failed to get successor list from %s: %v", targetNodeIP, err)
-		return nilLongURL(), false
+		return nilLongURL(), curr_hc, false
 	}
 
 	// go through the successor list of the target node
@@ -821,6 +880,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		}
 		retrieveMsg.RecieverIP = successorIP
 		reply, err := n.CallRPC(retrieveMsg, string(successorIP))
+		curr_hc = reply.HopCount // Update Hopcount accorind to Retrieve URL hop count
 		if err != nil {
 			log.Printf("Replica node %s failed: %v", successorIP, err)
 			continue
@@ -837,11 +897,11 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 				})
 				log.Printf("Conflict resolved: Updated local data for %s with newer data from replica.", shortUrl)
 			}
-			return retrievedURL, true
+			return retrievedURL, curr_hc, true
 		}
 	}
 
 	// If no replica has the data, return failure
 	log.Printf("Failed to retrieve %s from all replicas.", shortUrl)
-	return nilLongURL(), false
+	return nilLongURL(), curr_hc, false
 }

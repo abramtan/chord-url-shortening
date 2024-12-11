@@ -17,6 +17,7 @@ const (
 	PING                       = "ping"                       // Used to check predecessor.
 	ACK                        = "ack"                        // Used for general acknowledgements.
 	FIND_SUCCESSOR             = "find_successor"             // Used to find successor.
+	FIND_SUCCESSOR_ADD         = "find_successor_add"         // used to check hop count
 	CLOSEST_PRECEDING_NODE     = "closest_preceding_node"     // Used to find the closest preceding node, given a successor id.
 	GET_PREDECESSOR            = "get_predecessor"            // Used to get the predecessor of some node.
 	CREATE_SUCCESSOR_LIST      = "create_successor_list"      // Used in RPC call to get node.Successor
@@ -32,6 +33,12 @@ const (
 	SEND_REPLICA_DATA          = "send_replica_data"          // used to send node data to successors
 	NOTIFY_SUCCESSOR_LEAVING   = "notify_successor_leaving"   // Voluntary leaving - telling the successor
 	NOTIFY_PREDECESSOR_LEAVING = "notify_predecessor_leaving" // Voluntary leaving - telling the predecessor
+)
+
+const (
+	M        = 10
+	NUMNODES = 20
+	REPLICAS = 5
 )
 
 type URLData struct {
@@ -67,11 +74,18 @@ type Node struct {
 	UrlMap        URLMap
 	SuccList      []HashableString
 	FailFlag      bool
+	StoreHop      bool
 }
 
 type URLMap struct {
 	Mu     sync.Mutex
 	UrlMap map[HashableString]map[ShortURL]URLData
+}
+
+type Entry struct {
+	ShortURL  ShortURL
+	LongURL   LongURL
+	Timestamp int64
 }
 
 // func (m *URLMap) copy() map[HashableString]map[ShortURL]URLData {
@@ -147,18 +161,6 @@ func nilLongURL() LongURL {
 
 func (u LongURL) isNil() bool {
 	return u == nilLongURL()
-}
-
-const (
-	M        = 10
-	NUMNODES = 20
-	REPLICAS = 5
-)
-
-type Entry struct {
-	ShortURL  ShortURL
-	LongURL   LongURL
-	Timestamp int64
 }
 
 // UTILITY FUNCTIONS - Node
@@ -321,6 +323,7 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 		SenderIP:   n.GetIPAddress(),
 		RecieverIP: callNode.GetIPAddress(),
 		StoreEntry: Entry{ShortURL: shortURL, LongURL: longURL},
+		HopCount:   0,
 	}
 
 	log.Printf("Client sending CLIENT_STORE_URL message to Node %s\n", callNode.GetIPAddress())
@@ -330,6 +333,7 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 		log.Println("Error in ClientSendStoreURL", err)
 	}
 	log.Println("NODE :", reply.TargetIP, "successfully stored shortURL.")
+	fmt.Println("Store Hop Count:", reply.HopCount)
 	return reply.TargetIP
 }
 
@@ -355,5 +359,6 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool stri
 	if err != nil {
 		log.Println("Error in ClientRetrieveURL", err)
 	}
+	fmt.Println("Retrieve Hop Count:", reply.HopCount)
 	return reply.RetrieveEntry, !reply.RetrieveEntry.LongURL.isNil()
 }
