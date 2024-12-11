@@ -413,6 +413,18 @@ func (n *Node) checkPredecessor() {
 	if reply.MsgType == EMPTY || err != nil {
 		n.Mu.Lock()
 		n.predecessor = nilHashableString()
+
+        ownEntries := n.UrlMap.copyChildWithoutFoundCheck(n.ipAddress)
+        entriesFromPred := n.UrlMap.copyChildWithoutFoundCheck(pred)
+        combinedEntries := make(map[ShortURL]URLData)
+        for k,v := range(ownEntries) {
+            combinedEntries[k] = v
+        }
+        for k,v := range(entriesFromPred) {
+            combinedEntries[k] = v
+        }
+        n.UrlMap.update(n.ipAddress, combinedEntries)
+        n.UrlMap.delete(pred)
 		n.Mu.Unlock()
 	}
 }
@@ -474,6 +486,7 @@ func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]URLData, newPredecess
 	for k, v := range keys {
 		n.UrlMap.updateChild(n.ipAddress, k, v)
 	}
+    n.UrlMap.delete()
 	n.predecessor = newPredecessor
 	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap, n.predecessor)
 	n.Mu.Unlock()

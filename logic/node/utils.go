@@ -127,6 +127,12 @@ func (m *URLMap) updateChild(idx HashableString, childIdx ShortURL, entry URLDat
 	m.UrlMap[idx][childIdx] = entry
 }
 
+func (m *URLMap) delete(idx HashableString) {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+	delete(m.UrlMap, idx)
+}
+
 type Hash uint64 //[32]byte
 
 type HashableString string
