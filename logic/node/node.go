@@ -490,7 +490,7 @@ func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]URLData, newPredecess
 	for k, v := range keys {
 		n.UrlMap.updateChild(n.ipAddress, k, v)
 	}
-    n.UrlMap.delete()
+    n.UrlMap.delete(n.predecessor)
 	n.predecessor = newPredecessor
 	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap, n.predecessor)
 	n.Mu.Unlock()
