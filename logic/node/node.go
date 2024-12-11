@@ -432,6 +432,10 @@ func (n *Node) Maintain() {
 // Node voluntary leaving
 func (n *Node) Leave() {
 	// Transfer keys to successor and inform successor of its new predecessor
+	n.Mu.Lock()
+	n.FailFlag = true
+	n.Mu.Unlock()
+	
 	voluntaryLeaveSuccessorMsg := RMsg{
 		MsgType:        NOTIFY_SUCCESSOR_LEAVING,
 		SenderIP:       n.ipAddress,

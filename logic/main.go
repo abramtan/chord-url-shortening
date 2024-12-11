@@ -93,8 +93,6 @@ func main() {
 
 	time.Sleep(1500)
 	showmenu()
-	time.Sleep(1500)
-	showmenu()
 
 	for {
 		time.Sleep(5 * time.Millisecond)
@@ -119,7 +117,6 @@ func main() {
 				leaveNode := nodeAr[idx]
 				fmt.Println("Faulting Node", leaveNode.GetIPAddress())
 				leaveNode.Leave()
-				nodeAr = append(nodeAr[:idx], nodeAr[idx+1:]...)
 			} else {
 				fmt.Println("Invalid IP Address of Node")
 			}
