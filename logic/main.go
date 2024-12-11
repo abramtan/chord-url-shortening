@@ -255,13 +255,17 @@ func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.N
 /* Show a list of options to choose from.*/
 func showmenu(menuLog *log.Logger) {
 	// Enter ADD, DEL, STORE, RETRIEVE, RETRIEVEALL, FAULT, FIX, SHOW, LONGURL, MENU:
-	menuLog.Println("********************************")
+	menuLog.Println("****************************************************************")
 	menuLog.Println("\t\tMENU")
 	menuLog.Println("Send ADD to add node")
 	menuLog.Println("Send DEL to delete a random node")
 	menuLog.Println("Send STORE to add a new tinyurl")
 	menuLog.Println("Send RETRIEVE to get a long url")
+	menuLog.Println("Send RETRIEVEALL to run experiment for average time + hopcount")
+	menuLog.Println("Send FAULT to fail a specific node")
+	menuLog.Println("Send FIX to revive a specific node")
+	menuLog.Println("Send SHOW to current status of all nodes")
 	menuLog.Println("Send LONGURL to get a list of current long urls")
 	menuLog.Println("Press MENU to see the menu")
-	menuLog.Println("********************************")
+	menuLog.Println("****************************************************************")
 }
