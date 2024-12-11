@@ -334,7 +334,7 @@ func (n *Node) stabilise() {
 		reply, err := n.CallRPC(getPredecessorMsg, string(successorIP))
 		if err != nil || reply.TargetIP.isNil() { // err or empty senderIP
 			log.Println("ERROR: Could not get predecessor", err, reply, successorIP)
-			// continue // go to the next successor node
+			// continue // go to the next successor node ==> error causes all the nodes to take 0.0.0.0:1111
 		} else {
 			log.Println("INFO: Predecessor", reply)
 		}
@@ -486,13 +486,13 @@ func (n *Node) Leave() {
 // Informing successor of voluntary leaving
 func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]URLData, newPredecessor HashableString) {
 	n.Mu.Lock()
-	fmt.Printf("Message received, original map is %v, predecessor is %s\n", n.UrlMap, n.predecessor)
+	fmt.Printf("Message received, original map is %v, predecessor is %s\n", n.UrlMap.UrlMap, n.predecessor)
 	for k, v := range keys {
 		n.UrlMap.updateChild(n.ipAddress, k, v)
 	}
     n.UrlMap.delete(n.predecessor)
 	n.predecessor = newPredecessor
-	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap, n.predecessor)
+	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap.UrlMap, n.predecessor)
 	n.Mu.Unlock()
 }
 

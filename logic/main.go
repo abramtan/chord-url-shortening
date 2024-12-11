@@ -25,7 +25,7 @@ func main() {
 	// }()
 
 	// Initialize nodes
-	for i := 0; i < 10; i++ {
+	for i := 0; i < node.NUMNODES; i++ {
 		time.Sleep(1000)
 		currNode := node.InitNode(&nodeAr)
 		go currNode.Maintain()  // fix_fingers, stabilise, check_pred, maintain_succ
@@ -183,8 +183,8 @@ func main() {
 				printNode.Mu.Lock()
 				fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 				fmt.Println("IP Address: ", printNode.GetIPAddress(), "-- HASH:", printNode.GetIPAddress().GenerateHash())
-				fmt.Println("Fix Finger Count:", printNode.GetFixFingerCount(), " --- Finger Table:", printNode.GetFingerTable())
-				fmt.Println("Successor:", printNode.GetSuccessor(), " --- Predecessor:", printNode.GetPredecessor())
+				fmt.Println("FFCount:", printNode.GetFixFingerCount(), " -- Finger Table:", printNode.GetFingerTable())
+				fmt.Println("Successor:", printNode.GetSuccessor(), " -- Predecessor:", printNode.GetPredecessor())
 				fmt.Println("Successor List:", printNode.SuccList)
 				fmt.Println("URLMap:")
 				for hashString, mapVal := range printNode.UrlMap.UrlMap {

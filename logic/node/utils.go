@@ -151,7 +151,8 @@ func (u LongURL) isNil() bool {
 
 const (
 	M        = 10
-	REPLICAS = 3
+	NUMNODES = 20
+	REPLICAS = 5
 )
 
 type Entry struct {
