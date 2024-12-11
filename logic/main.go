@@ -5,8 +5,6 @@ import (
 	"io"
 	"log"
 	"logic/node"
-
-	// "math/rand/v2"
 	"net/http"
 	_ "net/http/pprof"
 	"slices"
@@ -80,12 +78,11 @@ func main() {
 	for _, node := range nodeAr {
 		node.Mu.Lock()
 		fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-		// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
 		fmt.Println("IP Address: ", node.GetIPAddress())
 		fmt.Println("Fix Finger Count:", node.GetFixFingerCount(), " --- Finger Table:", node.GetFingerTable())
 		fmt.Println("Successor:", node.GetSuccessor(), " --- Predecessor:", node.GetPredecessor())
 		fmt.Println("Successor List:", node.SuccList)
-		fmt.Println("URLMap:", node.UrlMap)
+		fmt.Println("URLMap:", &node.UrlMap)
 		node.Mu.Unlock()
 	}
 
@@ -188,12 +185,10 @@ func main() {
 			for _, printNode := range nodeAr {
 				printNode.Mu.Lock()
 				fmt.Println("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-				// fmt.Printf("%+v -- HASH: %+v\n", node, node.GetIPAddress().GenerateHash())
-				fmt.Println("IP Address: ", printNode.GetIPAddress())
+				fmt.Println("IP Address: ", printNode.GetIPAddress(), "-- HASH:", printNode.GetIPAddress().GenerateHash())
 				fmt.Println("Fix Finger Count:", printNode.GetFixFingerCount(), " --- Finger Table:", printNode.GetFingerTable())
 				fmt.Println("Successor:", printNode.GetSuccessor(), " --- Predecessor:", printNode.GetPredecessor())
 				fmt.Println("Successor List:", printNode.SuccList)
-				// fmt.Println("URLMap:", node.UrlMap)
 				fmt.Println("URLMap:")
 				for hashString, mapVal := range printNode.UrlMap.UrlMap {
 					fmt.Println("   for node:", hashString, "-- HASH:", hashString.GenerateHash())

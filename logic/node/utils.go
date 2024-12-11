@@ -22,8 +22,8 @@ const (
 	CREATE_SUCCESSOR_LIST      = "create_successor_list"      // Used in RPC call to get node.Successor
 	GET_SUCCESSOR_LIST         = "get_successor_list"         // get the successor's successor list to maintain list
 	NOTIFY                     = "notify"                     // Used to notify a node about a new predecessor.
-    NOTIFY_ACK                 = "notify_ack"                 // Used to ack a "notify", and possibly send the entries that the new predecessor needs to take on.
-    EMPTY                      = "empty"                      // Placeholder or undefined message type or errenous communications.
+	NOTIFY_ACK                 = "notify_ack"                 // Used to ack a "notify", and possibly send the entries that the new predecessor needs to take on.
+	EMPTY                      = "empty"                      // Placeholder or undefined message type or errenous communications.
 	JOIN                       = "join"                       // testing the join function
 	STORE_URL                  = "store_url"                  // Used to store a url in the node.
 	RETRIEVE_URL               = "retrieve_url"               // Used to retrieve a url from the node.
@@ -41,20 +41,20 @@ type URLData struct {
 
 type RMsg struct {
 	MsgType        string
-	SenderIP       HashableString // Sender IP
-	RecieverIP     HashableString // Receiver IP
-	TargetHash     Hash           // Hash Value of the value to be found (shortURL or IP Address )
-	TargetIP       HashableString // IP of the Found Node
-	StoreEntry     Entry          // for passing the short/long URL pair to be stored for a ShortURL request
-	RetrieveEntry  Entry          // for passing the retrieved longURL for a RetrieveURL request
-	HopCount       int            // For succList
-	SuccList       []HashableString // for successors
+	SenderIP       HashableString       // Sender IP
+	RecieverIP     HashableString       // Receiver IP
+	TargetHash     Hash                 // Hash Value of the value to be found (shortURL or IP Address )
+	TargetIP       HashableString       // IP of the Found Node
+	StoreEntry     Entry                // for passing the short/long URL pair to be stored for a ShortURL request
+	RetrieveEntry  Entry                // for passing the retrieved longURL for a RetrieveURL request
+	HopCount       int                  // For succList
+	SuccList       []HashableString     // for successors
 	ReplicaData    map[ShortURL]URLData // for replicas
 	Keys           map[ShortURL]URLData // For transferring keys when voluntatily leaving
 	NewPredecessor HashableString       // Informing successor of its new predecessor
 	LastNode       HashableString       // Last node in the successor list of the node leaving
 	Timestamp      int64
-	cacheString	   string
+	cacheString    string
 }
 
 type Node struct {
@@ -66,11 +66,11 @@ type Node struct {
 	predecessor   HashableString
 	UrlMap        URLMap
 	SuccList      []HashableString
-    FailFlag      bool
+	FailFlag      bool
 }
 
 type URLMap struct {
-	Mu sync.Mutex
+	Mu     sync.Mutex
 	UrlMap map[HashableString]map[ShortURL]URLData
 }
 
@@ -87,7 +87,7 @@ func (m *URLMap) copyChild(idx HashableString) (map[ShortURL]URLData, bool) {
 	newMap := make(map[ShortURL]URLData)
 	target, found := m.UrlMap[idx]
 	if found {
-		for k,v := range(target) {
+		for k, v := range target {
 			newMap[k] = v
 		}
 		return newMap, found
@@ -146,8 +146,6 @@ func (u LongURL) isNil() bool {
 const (
 	M        = 10
 	REPLICAS = 3
-	// CACHE_SIZE         = 5
-	// REPLICATION_FACTOR = 2
 )
 
 type Entry struct {
