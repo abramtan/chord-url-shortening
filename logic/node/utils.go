@@ -338,6 +338,7 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 }
 
 func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool string) (Entry, int, bool) {
+	log.Println("Client Retrieving URL method")
 	// longURL := LongURL(longUrl)
 	shortURL := ShortURL(shortUrl)
 

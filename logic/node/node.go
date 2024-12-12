@@ -48,10 +48,12 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 			reply.MsgType = EMPTY
 		}
 	case CLIENT_RETRIEVE_URL:
-		log.Println("Received CLIENT_RETRIEVE_URL message")
+		fmt.Println("Received CLIENT_RETRIEVE_URL message")
 		node.Mu.Lock()
 		ShortURL := msg.RetrieveEntry.ShortURL
+		log.Println("ShortURL", ShortURL)
 		cacheflag := msg.cacheString
+		log.Println("cacheString", cacheflag)
 		node.Mu.Unlock()
 		LongURL, currentHC, currFlow, found := node.RetrieveURL(ShortURL, msg.HopCount, msg.CheckFlow, cacheflag)
 		if found {
@@ -467,9 +469,9 @@ func (n *Node) Leave() {
 		log.Println("Error in Voluntary leave when sending successor", err)
 	}
 	if successorReply.MsgType == EMPTY {
-		fmt.Printf("Failed to inform successor %s I am leaving\n", n.successor)
+		log.Printf("Failed to inform successor %s I am leaving\n", n.successor)
 	} else {
-		fmt.Printf("Successfully informed successor %s I am leaving\n", n.successor)
+		log.Printf("Successfully informed successor %s I am leaving\n", n.successor)
 	}
 
 	// Telling predecessor the last node in its successor list
@@ -484,9 +486,9 @@ func (n *Node) Leave() {
 		log.Println("Error in Voluntary leave when sending predecessor", err)
 	}
 	if predecessorReply.MsgType == EMPTY {
-		fmt.Printf("Failed to inform predecessor %s I am leaving\n", n.predecessor)
+		log.Printf("Failed to inform predecessor %s I am leaving\n", n.predecessor)
 	} else {
-		fmt.Printf("Successfully informed predecessor %s I am leaving\n", n.predecessor)
+		log.Printf("Successfully informed predecessor %s I am leaving\n", n.predecessor)
 	}
 }
 
@@ -784,7 +786,35 @@ func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (Hashabl
 }
 
 func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString, cacheString string) (LongURL, int, []HashableString, bool) {
-	log.Printf("Inside RetrieveURL for ShortURL: %s", shortUrl)
+	fmt.Printf("Inside RetrieveURL for ShortURL: %s", shortUrl)
+
+	cacheHash := HashableString("CACHE")
+	n.Mu.Lock()
+
+	// Step 1 : check if cache exists
+	_, cacheExists := n.UrlMap.copyChild(cacheHash)
+
+	if !cacheExists { // make
+		n.UrlMap.update(cacheHash, make(map[ShortURL]URLData))
+	}
+	localEntry, exists := n.UrlMap.copyGrandchild(cacheHash, shortUrl)
+	localTimestamp := time.Time{}.Unix()
+	if exists {
+		localTimestamp = localEntry.Timestamp
+	}
+	n.Mu.Unlock()
+
+	// If mode is "cache" and the URL exists in the cache, return it
+	if cacheString == "cache" {
+		if exists {
+			log.Printf("Cache hit for ShortURL: %s", shortUrl)
+			return localEntry.LongURL, 0, nil, true
+		}
+		log.Printf("Cache miss for ShortURL (nocache): %s", shortUrl)
+		return nilLongURL(), 0, nil, false
+	}
+	// Mode is "nocache" or cache miss: retrieve data from the primary node
+	log.Printf("Retrieving URL from primary node for ShortURL: %s", shortUrl)
 
 	// Find the primary node responsible for the ShortURL
 	targetNodeIP, curr_hc, storeCurrFlow := n.FindSuccessorAddCount(HashableString(shortUrl).GenerateHash(), hc, currFlow)
@@ -796,20 +826,6 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 			return URLDataFound.LongURL, curr_hc, storeCurrFlow, true
 		}
 		return nilLongURL(), curr_hc, storeCurrFlow, false
-	}
-
-	cacheHash := HashableString("CACHE")
-	// Step 1 : check if cache exists
-	_, cacheExists := n.UrlMap.copyChild(cacheHash)
-
-	if !cacheExists { // make
-		n.UrlMap.update(cacheHash, make(map[ShortURL]URLData))
-	}
-
-	localEntry, exists := n.UrlMap.copyGrandchild(cacheHash, shortUrl)
-	localTimestamp := time.Time{}.Unix()
-	if exists {
-		localTimestamp = localEntry.Timestamp
 	}
 
 	// send retrieve url message to targetNode
@@ -830,7 +846,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 	if err == nil {
 		retrievedURL := reply.RetrieveEntry.LongURL
 		retrievedTimestamp := reply.RetrieveEntry.Timestamp
-		log.Printf("Retrieved URL: %s with Timestamp: %v", retrievedURL, retrievedTimestamp)
+		log.Printf("Retrieved URL: %s with Timestamp: %v through RPC", retrievedURL, retrievedTimestamp)
 
 		if !retrievedURL.isNil() {
 			if retrievedTimestamp > 0 && (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
@@ -846,7 +862,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 	}
 
 	// Primary node failed; query replicas
-	log.Printf("Primary node failed. Querying replicas for %s", shortUrl)
+	log.Printf("Primary node failed. Querying replicas for %s from successor list", shortUrl)
 
 	// Retrieve the successor list via RPC
 	succListMsg := RMsg{
@@ -877,6 +893,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 		retrievedURL := reply.RetrieveEntry.LongURL
 		retrievedTimestamp := reply.RetrieveEntry.Timestamp
 		if !retrievedURL.isNil() {
+			log.Printf("Retrieved URL: %s with Timestamp: %v through replica succ list RPC", retrievedURL, retrievedTimestamp)
 			// Conflict resolution
 			if retrievedTimestamp > 0 && (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
 				n.UrlMap.updateChild(cacheHash, shortUrl, URLData{
