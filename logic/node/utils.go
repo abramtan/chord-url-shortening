@@ -64,7 +64,7 @@ type RMsg struct {
 	NewPredecessor HashableString       // Informing successor of its new predecessor
 	LastNode       HashableString       // Last node in the successor list of the node leaving
 	Timestamp      int64
-	cacheString    string
+	CacheString    string
 	CheckFlow      []HashableString
 }
 
@@ -341,6 +341,7 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool stri
 	log.Println("Client Retrieving URL method")
 	// longURL := LongURL(longUrl)
 	shortURL := ShortURL(shortUrl)
+	InfoLog.Println(".....................................................")
 
 	// currently hardcoded the list of nodes that the client can call
 	var callNode *Node
@@ -356,7 +357,7 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool stri
 		SenderIP:      n.GetIPAddress(),
 		RecieverIP:    callNode.GetIPAddress(),
 		RetrieveEntry: Entry{ShortURL: shortURL, LongURL: nilLongURL()},
-		cacheString:   cacheBool,
+		CacheString:   cacheBool,
 		HopCount:      0,
 		CheckFlow:     make([]HashableString, 0),
 	}

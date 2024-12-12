@@ -176,6 +176,7 @@ func main() {
 			retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "cache")
 		case "RETRIEVEALL":
 			var SHOWLOGS string
+			var numTimes int
 			menuLog.Println("Type 'YES' if you would like to see logs.")
 			fmt.Scanln(&SHOWLOGS)
 			if SHOWLOGS == "YES" {
@@ -183,25 +184,27 @@ func main() {
 			} else {
 				node.InfoLog.SetOutput(io.Discard)
 			}
+			menuLog.Println("Type number of times to run the whole array")
+			fmt.Scanln(&numTimes)
 			var noCacheTime time.Duration
 			var cacheTime time.Duration
 			var noCacheCalls int
 			var cacheCalls int
-			numTimes := 5
+			// numTimes = int(numTimes)
 			for _, short := range shortURLAr {
 				for i := 0; i < numTimes; i++ {
-					call, time := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
-					noCacheTime += time
-					noCacheCalls += call
-					call, time = retrieveAndMeasure(short, nodeAr, clientNode, "cache")
-					cacheTime += time
-					cacheCalls += call
+					ncCall, ncTime := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
+					noCacheTime += ncTime
+					noCacheCalls += ncCall
+					cCall, cTime := retrieveAndMeasure(short, nodeAr, clientNode, "cache")
+					cacheTime += cTime
+					cacheCalls += cCall
 				}
 			}
 
 			menuLog.Println("FINAL EXPERIMENT STATISTICS")
 			menuLog.Println("No Cache Time:", noCacheTime, "No Cache Calls:", noCacheCalls, "Average of No Cache Time:", noCacheTime/time.Duration(numTimes*len(shortURLAr)))
-			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", noCacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numTimes*len(shortURLAr)))
+			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", cacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numTimes*len(shortURLAr)))
 
 			if !(SHOWLOGS == "YES") {
 				node.InfoLog.SetOutput(os.Stdout)

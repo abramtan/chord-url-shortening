@@ -50,11 +50,9 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		log.Println("Received CLIENT_RETRIEVE_URL message")
 		node.Mu.Lock()
 		ShortURL := msg.RetrieveEntry.ShortURL
-		log.Println("ShortURL", ShortURL)
-		cacheflag := msg.cacheString
-		log.Println("cacheString", cacheflag)
 		node.Mu.Unlock()
-		LongURL, currentHC, currFlow, found := node.RetrieveURL(ShortURL, msg.HopCount, msg.CheckFlow, cacheflag)
+		InfoLog.Println("Inside CLIENT_RETRIEVE_URL", msg.CacheString)
+		LongURL, currentHC, currFlow, found := node.RetrieveURL(ShortURL, msg.HopCount, msg.CheckFlow, msg.CacheString)
 		if found {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: LongURL}
 		} else {
@@ -755,6 +753,7 @@ func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (Hashabl
 			Timestamp: time.Now().Unix(),
 		})
 		InfoLog.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
+		InfoLog.Printf("Stored URL in cache: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
 		return n.GetIPAddress(), curr_hc, storeCurrFlow, nil
 	} else {
 		storeMsg := RMsg{
@@ -777,7 +776,7 @@ func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (Hashabl
 				Timestamp: ackTimestamp,
 			})
 
-			InfoLog.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
+			InfoLog.Printf("Updated Cache on Node %s: %s -> %s (Timestamp: %v)", n.GetIPAddress(), entry.ShortURL, entry.LongURL, ackTimestamp)
 			return reply.TargetIP, reply.HopCount, reply.CheckFlow, nil
 		}
 	}
@@ -806,8 +805,10 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 	// If mode is "cache" and the URL exists in the cache, return it
 	if cacheString == "cache" {
 		if exists {
+			hc++
+			currFlow = append(currFlow, n.GetIPAddress())
 			InfoLog.Printf("Cache hit for ShortURL: %s", shortUrl)
-			return localEntry.LongURL, 0, nil, true
+			return localEntry.LongURL, hc, currFlow, true
 		}
 		InfoLog.Printf("Cache miss for ShortURL (nocache): %s", shortUrl)
 		// return nilLongURL(), 0, nil, false
@@ -848,12 +849,12 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 		log.Printf("Retrieved URL: %s with Timestamp: %v through RPC", retrievedURL, retrievedTimestamp)
 
 		if !retrievedURL.isNil() {
-			if retrievedTimestamp > 0 && (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
+			if retrievedTimestamp > 0 || (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
 				n.UrlMap.updateChild(cacheHash, shortUrl, URLData{
 					LongURL:   retrievedURL,
 					Timestamp: time.Now().Unix(),
 				})
-				log.Printf("Conflict resolved: Updated local data for %s with newer data.", shortUrl)
+				InfoLog.Printf("Primary Node Hit : Conflict resolved/updated cache: Updated local data for %s with newer data.", shortUrl)
 			}
 			return retrievedURL, curr_hc, storeCurrFlow, true
 		}
@@ -892,14 +893,14 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 		retrievedURL := reply.RetrieveEntry.LongURL
 		retrievedTimestamp := reply.RetrieveEntry.Timestamp
 		if !retrievedURL.isNil() {
-			log.Printf("Retrieved URL: %s with Timestamp: %v through replica succ list RPC", retrievedURL, retrievedTimestamp)
+			InfoLog.Printf("Retrieved URL: %s with Timestamp: %v through replica succ list RPC", retrievedURL, retrievedTimestamp)
 			// Conflict resolution
-			if retrievedTimestamp > 0 && (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
+			if retrievedTimestamp > 0 || (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
 				n.UrlMap.updateChild(cacheHash, shortUrl, URLData{
 					LongURL:   retrievedURL,
 					Timestamp: time.Now().Unix(),
 				})
-				log.Printf("Conflict resolved: Updated local data for %s with newer data from replica.", shortUrl)
+				InfoLog.Printf("Conflict resolved/updated cache: Updated local data for %s with newer data from replica.", shortUrl)
 			}
 			return retrievedURL, curr_hc, storeCurrFlow, true
 		}
