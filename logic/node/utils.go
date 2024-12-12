@@ -368,7 +368,6 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool stri
 	if err != nil {
 		log.Println("Error in ClientRetrieveURL", err)
 	}
-	InfoLog.Println("***************************************************")
 	InfoLog.Println("Retrieving Entry:", reply.RetrieveEntry, "--- Found:", !reply.RetrieveEntry.LongURL.isNil())
 	InfoLog.Println("Retrieve Hop Count:", reply.HopCount, "---", "Store Hop Flow:", reply.CheckFlow)
 	return reply.RetrieveEntry, reply.HopCount, !reply.RetrieveEntry.LongURL.isNil()

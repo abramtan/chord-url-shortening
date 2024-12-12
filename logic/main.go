@@ -191,8 +191,8 @@ func main() {
 			var noCacheCalls int
 			var cacheCalls int
 			// numTimes = int(numTimes)
-			for _, short := range shortURLAr {
-				for i := 0; i < numTimes; i++ {
+			for i := 0; i < numTimes; i++ {
+				for _, short := range shortURLAr {
 					ncCall, ncTime := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
 					noCacheTime += ncTime
 					noCacheCalls += ncCall

@@ -22,11 +22,6 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case JOIN:
 		log.Println("Received JOIN message")
 		reply.MsgType = ACK
-	// case FIND_SUCCESSOR:
-	// 	log.Println("Received FIND SUCCESSOR message")
-	// 	log.Println(msg.TargetHash)
-	// 	successor := node.FindSuccessor(msg.TargetHash) // first value should be the target IP Address
-	// 	reply.TargetIP = successor
 	case FIND_SUCCESSOR_ADD:
 		log.Println("Received FIND SUCCESSOR message")
 		log.Println(msg.TargetHash)
@@ -51,7 +46,6 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		node.Mu.Lock()
 		ShortURL := msg.RetrieveEntry.ShortURL
 		node.Mu.Unlock()
-		InfoLog.Println("Inside CLIENT_RETRIEVE_URL", msg.CacheString)
 		LongURL, currentHC, currFlow, found := node.RetrieveURL(ShortURL, msg.HopCount, msg.CheckFlow, msg.CacheString)
 		if found {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: LongURL}
@@ -807,14 +801,12 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 		if exists {
 			hc++
 			currFlow = append(currFlow, n.GetIPAddress())
-			InfoLog.Printf("Cache hit for ShortURL: %s", shortUrl)
+			// InfoLog.Printf("Cache hit for ShortURL: %s", shortUrl)
 			return localEntry.LongURL, hc, currFlow, true
 		}
-		InfoLog.Printf("Cache miss for ShortURL (nocache): %s", shortUrl)
-		// return nilLongURL(), 0, nil, false
 	}
 	// Mode is "nocache" or cache miss: retrieve data from the primary node
-	log.Printf("Retrieving URL from primary node for ShortURL: %s", shortUrl)
+	InfoLog.Printf("Retrieving URL from primary node for ShortURL: %s", shortUrl)
 
 	// Find the primary node responsible for the ShortURL
 	targetNodeIP, curr_hc, storeCurrFlow := n.FindSuccessorAddCount(HashableString(shortUrl).GenerateHash(), hc, currFlow)
@@ -846,7 +838,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 	if err == nil {
 		retrievedURL := reply.RetrieveEntry.LongURL
 		retrievedTimestamp := reply.RetrieveEntry.Timestamp
-		log.Printf("Retrieved URL: %s with Timestamp: %v through RPC", retrievedURL, retrievedTimestamp)
+		InfoLog.Printf("Retrieved URL: %s with Timestamp: %v through RPC", retrievedURL, retrievedTimestamp)
 
 		if !retrievedURL.isNil() {
 			if retrievedTimestamp > 0 || (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
@@ -854,7 +846,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 					LongURL:   retrievedURL,
 					Timestamp: time.Now().Unix(),
 				})
-				InfoLog.Printf("Primary Node Hit : Conflict resolved/updated cache: Updated local data for %s with newer data.", shortUrl)
+				InfoLog.Printf("Primary Node %s Hit : Conflict resolved/updated cache: Updated local data for %s with newer data.", n.GetIPAddress(), shortUrl)
 			}
 			return retrievedURL, curr_hc, storeCurrFlow, true
 		}
@@ -862,7 +854,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 	}
 
 	// Primary node failed; query replicas
-	log.Printf("Primary node failed. Querying replicas for %s from successor list", shortUrl)
+	InfoLog.Printf("Primary node failed. Querying replicas for %s from successor list", shortUrl)
 
 	// Retrieve the successor list via RPC
 	succListMsg := RMsg{
@@ -886,14 +878,14 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 		curr_hc = reply.HopCount // Update Hopcount accorind to Retrieve URL hop count
 		storeCurrFlow = reply.CheckFlow
 		if err != nil {
-			log.Printf("Replica node %s failed: %v", successorIP, err)
+			InfoLog.Printf("Replica node %s failed: %v", successorIP, err)
 			continue
 		}
 
 		retrievedURL := reply.RetrieveEntry.LongURL
 		retrievedTimestamp := reply.RetrieveEntry.Timestamp
 		if !retrievedURL.isNil() {
-			InfoLog.Printf("Retrieved URL: %s with Timestamp: %v through replica succ list RPC", retrievedURL, retrievedTimestamp)
+			InfoLog.Printf("Retrieved URL: %s with Timestamp: %v from node %s through replica succ list RPC", retrievedURL, retrievedTimestamp, reply.SenderIP)
 			// Conflict resolution
 			if retrievedTimestamp > 0 || (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
 				n.UrlMap.updateChild(cacheHash, shortUrl, URLData{
