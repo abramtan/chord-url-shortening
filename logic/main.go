@@ -60,8 +60,10 @@ func main() {
 
 	retrieveStart := time.Now()
 	for _, short := range insertShort {
-		retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr, "cache")
+		// retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr, "nocache")
+		retrShort, shortFound := clientNode.ClientRetrieveURL(short, nodeAr)
 
+		log.Println("retrieve entry", retrShort, "found", shortFound)
 		fmt.Println("retrieve entry", retrShort, "found", shortFound)
 		if shortFound {
 			fmt.Printf("URL Retrieved: %s -> %s\n", string(retrShort.ShortURL), retrShort.LongURL)
@@ -178,9 +180,22 @@ func main() {
 				fmt.Scanln(&SHORTURL)
 			}
 
+			retrieveStart := time.Now()
+			acquiredURL, found := clientNode.ClientRetrieveURL(SHORTURL, nodeAr)
+			// acquiredURL, found := clientNode.ClientRetrieveURL(shortURL, nodeAr, retrievalMode)
+			retrieveEnd := time.Now()
+			fmt.Println("retrieve entry", acquiredURL, "found", found)
+			if found {
+				fmt.Printf("URL Retrieved: %s -> %s\n", acquiredURL.ShortURL, acquiredURL.LongURL)
+			} else {
+				fmt.Println("URL not found")
+			}
+			// fmt.Printf("Time taken to retrieve URL using %s: %v\n", retrievalMode, retrieveEnd.Sub(retrieveStart))
+			fmt.Printf("Time taken to retrieve URL: %v\n", retrieveEnd.Sub(retrieveStart))
 			// Retrieve and measure time for both "nocache" and "cache" modes
-			retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "nocache")
-			retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "cache")
+			// retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "nocache")
+			// retrieveAndMeasure(SHORTURL, nodeAr, clientNode)
+			// retrieveAndMeasure(SHORTURL, nodeAr, clientNode, "cache")
 
 		case "LONGURL":
 			fmt.Println(longURLAr)
@@ -211,11 +226,13 @@ func main() {
 	}
 }
 
-func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.Node, retrievalMode string) {
-	fmt.Println("Retrieving URL using mode:", retrievalMode)
+// func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.Node, retrievalMode string) {
+	func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.Node) {
+	// fmt.Println("Retrieving URL using mode:", retrievalMode)
 	retrieveStart := time.Now()
 
-	acquiredURL, found := clientNode.ClientRetrieveURL(shortURL, nodeAr, retrievalMode)
+	acquiredURL, found := clientNode.ClientRetrieveURL(shortURL, nodeAr)
+	// acquiredURL, found := clientNode.ClientRetrieveURL(shortURL, nodeAr, retrievalMode)
 	retrieveEnd := time.Now()
 
 	fmt.Println("retrieve entry", acquiredURL, "found", found)
@@ -225,7 +242,8 @@ func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.N
 		fmt.Println("URL not found")
 	}
 
-	fmt.Printf("Time taken to retrieve URL using %s: %v\n", retrievalMode, retrieveEnd.Sub(retrieveStart))
+	// fmt.Printf("Time taken to retrieve URL using %s: %v\n", retrievalMode, retrieveEnd.Sub(retrieveStart))
+	fmt.Printf("Time taken to retrieve URL: %v\n", retrieveEnd.Sub(retrieveStart))
 }
 
 /* Show a list of options to choose from.*/

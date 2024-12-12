@@ -43,6 +43,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		log.Println("Received CLIENT_RETRIEVE_URL message")
 		node.Mu.Lock()
 		ShortURL := msg.RetrieveEntry.ShortURL
+		fmt.Println("short url in handleinc is: ", ShortURL)
 		node.Mu.Unlock()
 		LongURL, found := node.RetrieveURL(ShortURL)
 		if found {
@@ -74,9 +75,11 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	case RETRIEVE_URL:
 		log.Println("Received RETRIEVE_URL message")
 		ShortURL := msg.RetrieveEntry.ShortURL
-        node.Mu.Lock()
+		node.Mu.Lock()
+		fmt.Println("node url map: ", node.UrlMap)
+		fmt.Println("node ip address: ", node.ipAddress)
 		URLDataFound, found := node.UrlMap[node.ipAddress][ShortURL]
-        node.Mu.Unlock()
+		node.Mu.Unlock()
 		log.Println("AFTER RECV, RETRIEVED LONGURL", URLDataFound)
 		if found {
 			reply.RetrieveEntry = Entry{ShortURL: ShortURL, LongURL: URLDataFound.LongURL}
@@ -95,10 +98,10 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		nPrime := msg.SenderIP
 		node.Notify(nPrime)
 		reply.MsgType = ACK
-    case NOTIFY_ACK:
+	case NOTIFY_ACK:
 		log.Println("Received NOTIFY_ACK message")
-        node.receiveShiftKeys(msg.Keys)
-        reply.MsgType = ACK
+		node.receiveShiftKeys(msg.Keys)
+		reply.MsgType = ACK
 	case PING:
 		log.Println("Received PING message")
 		reply.MsgType = ACK
@@ -112,7 +115,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		log.Println("Recieved Node Data")
 		// node.Mu.Lock()
 		node.StoreReplica(msg)
-        // node.Mu.Unlock()
+		// node.Mu.Unlock()
 		reply.MsgType = ACK
 	case NOTIFY_SUCCESSOR_LEAVING:
 		log.Print("Received voluntarily leaving message (successor)")
@@ -223,10 +226,10 @@ func (n *Node) MaintainSuccList() {
 	n.SuccList = append([]HashableString{n.successor}, successorSuccList[:len(successorSuccList)-1]...) // Exclude the last element
 	currMap := n.SuccList
 	replicaData := n.UrlMap[n.ipAddress]
-    replicaDataCopy := make(map[ShortURL]URLData)
-    for k,v := range(replicaData) {
-        replicaDataCopy[k] = v
-    }
+	replicaDataCopy := make(map[ShortURL]URLData)
+	for k, v := range replicaData {
+		replicaDataCopy[k] = v
+	}
 	n.Mu.Unlock()
 
 	for _, succIP := range currMap {
@@ -372,9 +375,9 @@ func (n *Node) stabilise() {
 }
 
 func (n *Node) receiveShiftKeys(transferKeys map[ShortURL]URLData) {
-    n.Mu.Lock()
-    n.UrlMap[n.ipAddress] = transferKeys
-    n.Mu.Unlock() 
+	n.Mu.Lock()
+	n.UrlMap[n.ipAddress] = transferKeys
+	n.Mu.Unlock()
 }
 
 func (n *Node) fixFingers() {
@@ -543,11 +546,11 @@ func (node *Node) Notify(nPrime HashableString) {
 		update = true
 	}
 
-    node.Mu.Unlock()
+	node.Mu.Unlock()
 	if update {
-        // if node.pred updates send keys
-        transferKey := make(map[ShortURL]URLData, 0)
-        keepKey := make(map[ShortURL]URLData, 0)
+		// if node.pred updates send keys
+		transferKey := make(map[ShortURL]URLData, 0)
+		keepKey := make(map[ShortURL]URLData, 0)
 		// check which exists between itself and pred
 		node.Mu.Lock()
 		currMap := node.UrlMap[node.ipAddress]
@@ -561,23 +564,23 @@ func (node *Node) Notify(nPrime HashableString) {
 			}
 		}
 
-        transferKeyMsg := RMsg{
-            MsgType: NOTIFY_ACK,
-            SenderIP: node.ipAddress,
-            RecieverIP: nPrime,
-            Keys: transferKey,
-        }
+		transferKeyMsg := RMsg{
+			MsgType:    NOTIFY_ACK,
+			SenderIP:   node.ipAddress,
+			RecieverIP: nPrime,
+			Keys:       transferKey,
+		}
 
-        reply, err := node.CallRPC(transferKeyMsg, string(nPrime))
-        if err != nil {
-            log.Printf("Something went wrong during notify shift keys")
-        }
+		reply, err := node.CallRPC(transferKeyMsg, string(nPrime))
+		if err != nil {
+			log.Printf("Something went wrong during notify shift keys")
+		}
 
-        if reply.MsgType == ACK {
-            node.Mu.Lock()
-            node.UrlMap[node.ipAddress] = keepKey
-            node.Mu.Unlock()
-        }
+		if reply.MsgType == ACK {
+			node.Mu.Lock()
+			node.UrlMap[node.ipAddress] = keepKey
+			node.Mu.Unlock()
+		}
 	}
 
 	// node.Mu.Unlock()
@@ -723,6 +726,8 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 
 	// Find the primary node responsible for the ShortURL
 	targetNodeIP := n.FindSuccessor(HashableString(shortUrl).GenerateHash())
+	fmt.Println("target node ip: ", targetNodeIP)
+	fmt.Println("succ list: ", n.SuccList)
 
 	// Attempt retrieval from the primary node
 	if targetNodeIP == n.ipAddress {
@@ -766,6 +771,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL) (LongURL, bool) {
 		retrievedURL := reply.RetrieveEntry.LongURL
 		retrievedTimestamp := reply.RetrieveEntry.Timestamp
 		log.Printf("Retrieved URL: %s with Timestamp: %v", retrievedURL, retrievedTimestamp)
+		fmt.Printf("Retrieved URL: %s with Timestamp: %v", retrievedURL, retrievedTimestamp)
 
 		if !retrievedURL.isNil() {
 			if retrievedTimestamp > 0 && (!exists || retrievedTimestamp > (localEntry.Timestamp)) {
