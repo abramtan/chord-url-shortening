@@ -267,16 +267,30 @@ func (n *Node) customAccept(server *rpc.Server, lis net.Listener) {
 	}
 }
 
-func makeAddr(port int) string {
-	return fmt.Sprintf("0.0.0.0:%d", port)
+func makeAddr(randomOffset int) string {
+	return fmt.Sprintf("0.0.0.0:%d", 1111 + randomOffset)
 }
 
 func InitNode(nodeAr *[]*Node) *Node {
-	port := 1111 + rand.Intn(10000)
+	randRange := 10000
+	randomOffset := rand.Intn(randRange)
+	for {
+		contains := false
+		for _, ptr := range(*nodeAr) {
+			if makeAddr(randomOffset) == string(ptr.ipAddress) {
+				contains = true
+			}
+		}
+		if contains {
+			randomOffset = rand.Intn(randRange)
+		} else {
+			break
+		}
+	}
 
 	// Create new Node object for yourself
 	node := Node{
-		ipAddress:   HashableString(makeAddr(port)),
+		ipAddress:   HashableString(makeAddr(randomOffset)),
 		fingerTable: make([]HashableString, M),                                     // this is the length of the finger table 2**M
 		UrlMap:      URLMap{UrlMap: make(map[HashableString]map[ShortURL]URLData)}, // TODO: mutex?
 		SuccList:    make([]HashableString, REPLICAS),
