@@ -740,9 +740,15 @@ func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (Hashabl
 	targetNodeIP, curr_hc, storeCurrFlow := n.FindSuccessorAddCount(HashableString(entry.ShortURL).GenerateHash(), hc, currFlow)
 
 	cacheHash := HashableString("CACHE")
-	if _, cacheExists := n.UrlMap.copyChild(cacheHash); !cacheExists {
+	cache, cacheExists := n.UrlMap.copyChild(cacheHash)
+	if !cacheExists {
 		n.UrlMap.update(cacheHash, make(map[ShortURL]URLData))
+		cache = make(map[ShortURL]URLData)
 	}
+	if len(cache) >= 10 { 
+		n.UrlMap.removeOldestChild(cacheHash)
+	}
+	
 	if targetNodeIP == n.ipAddress {
 		if _, found := n.UrlMap.copyChild(n.ipAddress); !found { // if not found, make map
 			n.UrlMap.update(n.ipAddress, make(map[ShortURL]URLData))
@@ -790,10 +796,13 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 	n.Mu.Lock()
 
 	// Step 1 : check if cache exists
-	_, cacheExists := n.UrlMap.copyChild(cacheHash)
-
+	cache, cacheExists := n.UrlMap.copyChild(cacheHash)
 	if !cacheExists { // make
 		n.UrlMap.update(cacheHash, make(map[ShortURL]URLData))
+		cache = make(map[ShortURL]URLData)
+	}
+	if len(cache) >= 10 { 
+		n.UrlMap.removeOldestChild(cacheHash)
 	}
 	localEntry, exists := n.UrlMap.copyGrandchild(cacheHash, shortUrl)
 	localTimestamp := time.Time{}.Unix()
@@ -909,4 +918,29 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 	// If no replica has the data, return failure
 	log.Printf("Failed to retrieve %s from all replicas.", shortUrl)
 	return nilLongURL(), curr_hc, storeCurrFlow, false
+}
+
+func (m *URLMap) removeOldestChild(idx HashableString) {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+
+	target, found := m.UrlMap[idx]
+	if !found {
+		return
+	}
+
+	var oldestKey ShortURL
+	var oldestTime int64 = time.Now().Unix()
+
+	// loop through to find the oldest timestamp key
+	for k, v := range target {
+		if v.Timestamp < oldestTime {
+			oldestTime = v.Timestamp
+			oldestKey = k
+		}
+	}
+
+	// delete key
+	delete(target, oldestKey)
+	m.UrlMap[idx] = target
 }
