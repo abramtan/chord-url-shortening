@@ -2,15 +2,14 @@ package node
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"net"
 	"net/rpc"
-	"strconv"
 	"time"
 )
-
-var nodeCount int
 
 /*
 NODE Function to handle incoming RPC Calls and where to route them
@@ -268,20 +267,16 @@ func (n *Node) customAccept(server *rpc.Server, lis net.Listener) {
 	}
 }
 
+func makeAddr(port int) string {
+	return fmt.Sprintf("0.0.0.0:%d", port)
+}
+
 func InitNode(nodeAr *[]*Node) *Node {
-	nodeCount++
-	port := strconv.Itoa(nodeCount*1111 + nodeCount - 1)
-
-	// send to the same node each time
-	helperIp := "0.0.0.0"
-	helperPort := "1111"
-
-	var addr = "0.0.0.0" + ":" + port
+	port := 1111 + rand.Intn(10000)
 
 	// Create new Node object for yourself
 	node := Node{
-		// id:          IPAddress(addr).GenerateHash(M),
-		ipAddress:   HashableString(addr),
+		ipAddress:   HashableString(makeAddr(port)),
 		fingerTable: make([]HashableString, M),                                     // this is the length of the finger table 2**M
 		UrlMap:      URLMap{UrlMap: make(map[HashableString]map[ShortURL]URLData)}, // TODO: mutex?
 		SuccList:    make([]HashableString, REPLICAS),
@@ -305,17 +300,16 @@ func InitNode(nodeAr *[]*Node) *Node {
 	// Register RPC methods and accept incoming requests
 	server.Register(&node)
 	log.Printf("Node is running at IP address: %s\n", tcpAddr.String())
-	// go server.Accept(inbound)
+
 	go node.customAccept(server, inbound)
 
-	/* Joining at the port 0.0.0.0:1111 */
-	// TODO : Handle joining at random nodes
-	if helperPort == port { // I am the joining node
+	if len(*nodeAr) == 0 {
 		*nodeAr = append(*nodeAr, &node)
 		node.CreateNetwork()
 	} else {
+		joinHelperNode := (*nodeAr)[rand.Intn(len(*nodeAr))]
 		*nodeAr = append(*nodeAr, &node)
-		node.JoinNetwork(HashableString(helperIp + ":" + helperPort))
+		node.JoinNetwork(joinHelperNode.ipAddress)
 	}
 
 	return &node
