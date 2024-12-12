@@ -270,7 +270,7 @@ func (n *Node) customAccept(server *rpc.Server, lis net.Listener) {
 
 func InitNode(nodeAr *[]*Node) *Node {
 	nodeCount++
-	port := strconv.Itoa(nodeCount*1111 + nodeCount - 1)
+	port := strconv.Itoa((nodeCount - 1) * 10 + 1111)
 
 	// send to the same node each time
 	helperIp := "0.0.0.0"
