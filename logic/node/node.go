@@ -2,7 +2,6 @@ package node
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"math"
 	"net"
@@ -48,7 +47,7 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 			reply.MsgType = EMPTY
 		}
 	case CLIENT_RETRIEVE_URL:
-		fmt.Println("Received CLIENT_RETRIEVE_URL message")
+		log.Println("Received CLIENT_RETRIEVE_URL message")
 		node.Mu.Lock()
 		ShortURL := msg.RetrieveEntry.ShortURL
 		log.Println("ShortURL", ShortURL)
@@ -495,20 +494,20 @@ func (n *Node) Leave() {
 // Informing successor of voluntary leaving
 func (n *Node) voluntaryLeavingSuccessor(keys map[ShortURL]URLData, newPredecessor HashableString) {
 	n.Mu.Lock()
-	fmt.Printf("Message received, original map is %v, predecessor is %s\n", n.UrlMap.UrlMap, n.predecessor)
+	InfoLog.Printf("Message received, original map is %v, predecessor is %s\n", n.UrlMap.UrlMap, n.predecessor)
 	for k, v := range keys {
 		n.UrlMap.updateChild(n.ipAddress, k, v)
 	}
 	n.UrlMap.delete(n.predecessor)
 	n.predecessor = newPredecessor
-	fmt.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap.UrlMap, n.predecessor)
+	InfoLog.Printf("Update complete, new map is %v, new predecessor is %s\n", n.UrlMap.UrlMap, n.predecessor)
 	n.Mu.Unlock()
 }
 
 // Informing predecessor of voluntary leaving
 func (n *Node) voluntaryLeavingPredecessor(sender HashableString, lastNode HashableString) {
 	n.Mu.Lock()
-	fmt.Printf("Message received, original successor list is %s\n", n.SuccList)
+	InfoLog.Printf("Message received, original successor list is %s\n", n.SuccList)
 	newSuccList := []HashableString{}
 	for _, succ := range n.SuccList {
 		if succ != sender {
@@ -517,7 +516,7 @@ func (n *Node) voluntaryLeavingPredecessor(sender HashableString, lastNode Hasha
 	}
 	newSuccList = append(newSuccList, lastNode)
 	n.SuccList = newSuccList
-	fmt.Printf("Update complete, new successor list is %s\n", n.SuccList)
+	InfoLog.Printf("Update complete, new successor list is %s\n", n.SuccList)
 	n.Mu.Unlock()
 }
 
@@ -755,7 +754,7 @@ func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (Hashabl
 			LongURL:   entry.LongURL,
 			Timestamp: time.Now().Unix(),
 		})
-		log.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
+		InfoLog.Printf("Stored URL: %s -> %s on Node %s\n", entry.ShortURL, entry.LongURL, n.ipAddress)
 		return n.GetIPAddress(), curr_hc, storeCurrFlow, nil
 	} else {
 		storeMsg := RMsg{
@@ -766,7 +765,7 @@ func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (Hashabl
 			HopCount:   curr_hc,
 			CheckFlow:  storeCurrFlow,
 		}
-		log.Printf("Sending STORE_URL message to Node %s\n", targetNodeIP)
+		InfoLog.Printf("Sending STORE_URL message to Node %s\n", targetNodeIP)
 		reply, err := n.CallRPC(storeMsg, string(targetNodeIP))
 		if err != nil {
 			return nilHashableString(), curr_hc, storeCurrFlow, err
@@ -778,7 +777,7 @@ func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (Hashabl
 				Timestamp: ackTimestamp,
 			})
 
-			log.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
+			InfoLog.Printf("Updated Cache: %s -> %s (Timestamp: %v)", entry.ShortURL, entry.LongURL, ackTimestamp)
 			return reply.TargetIP, reply.HopCount, reply.CheckFlow, nil
 		}
 	}
@@ -786,7 +785,7 @@ func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (Hashabl
 }
 
 func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString, cacheString string) (LongURL, int, []HashableString, bool) {
-	fmt.Printf("Inside RetrieveURL for ShortURL: %s", shortUrl)
+	log.Printf("Inside RetrieveURL for ShortURL: %s\n", shortUrl)
 
 	cacheHash := HashableString("CACHE")
 	n.Mu.Lock()
@@ -807,11 +806,11 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 	// If mode is "cache" and the URL exists in the cache, return it
 	if cacheString == "cache" {
 		if exists {
-			log.Printf("Cache hit for ShortURL: %s", shortUrl)
+			InfoLog.Printf("Cache hit for ShortURL: %s", shortUrl)
 			return localEntry.LongURL, 0, nil, true
 		}
-		log.Printf("Cache miss for ShortURL (nocache): %s", shortUrl)
-		return nilLongURL(), 0, nil, false
+		InfoLog.Printf("Cache miss for ShortURL (nocache): %s", shortUrl)
+		// return nilLongURL(), 0, nil, false
 	}
 	// Mode is "nocache" or cache miss: retrieve data from the primary node
 	log.Printf("Retrieving URL from primary node for ShortURL: %s", shortUrl)

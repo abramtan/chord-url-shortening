@@ -92,7 +92,7 @@ func main() {
 		time.Sleep(5 * time.Millisecond)
 		var input string
 		menuLog.Println("*******************************************************************************")
-		menuLog.Println("   Enter ADD, DEL, STORE, RETRIEVE, RETRIEVEALL, FAULT, FIX, SHOW, LONGURL, MENU:  	")
+		menuLog.Println("   Enter ADD, DEL, STORE, RETRIEVE, RETRIEVEALL, FAULT, FIX, SHOW, TESTCACHE, LONGURL, MENU:  	")
 		menuLog.Println("*******************************************************************************")
 		fmt.Scanln(&input)
 
@@ -187,7 +187,7 @@ func main() {
 			var cacheTime time.Duration
 			var noCacheCalls int
 			var cacheCalls int
-			numTimes := 20
+			numTimes := 5
 			for _, short := range shortURLAr {
 				for i := 0; i < numTimes; i++ {
 					call, time := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
@@ -227,6 +227,30 @@ func main() {
 			}
 		case "MENU":
 			showmenu(menuLog)
+		case "TESTCACHE":
+			var RETRIEVEIP string
+			var SHORT string
+			menuLog.Println("Type IP Address to Retrieve URL From")
+			fmt.Scanln(&RETRIEVEIP)
+			menuLog.Println("Type in Short URL to retrieve")
+			fmt.Scanln(&SHORT)
+
+			// retrieve appropiate node
+			var retrNode *node.Node
+			for _, no := range nodeAr {
+				if no.GetIPAddress() == node.HashableString(RETRIEVEIP) {
+					retrNode = no
+					break
+				}
+			}
+
+			if retrNode.GetIPAddress() == node.HashableString(RETRIEVEIP) {
+				tempAr := []*node.Node{retrNode}
+				// retrieveAndMeasure(SHORT, tempAr, clientNode, "nocache")
+				retrieveAndMeasure(SHORT, tempAr, clientNode, "cache")
+			} else {
+				menuLog.Println("Invalid input...")
+			}
 		default:
 			menuLog.Println("Invalid input...")
 		}
@@ -262,6 +286,7 @@ func showmenu(menuLog *log.Logger) {
 	menuLog.Println("Send STORE to add a new tinyurl")
 	menuLog.Println("Send RETRIEVE to get a long url")
 	menuLog.Println("Send RETRIEVEALL to run experiment for average time + hopcount")
+	menuLog.Println("Send TESTCACHE to run experiment for average time + hopcount")
 	menuLog.Println("Send FAULT to fail a specific node")
 	menuLog.Println("Send FIX to revive a specific node")
 	menuLog.Println("Send SHOW to current status of all nodes")

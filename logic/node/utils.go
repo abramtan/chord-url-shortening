@@ -343,7 +343,12 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool stri
 	shortURL := ShortURL(shortUrl)
 
 	// currently hardcoded the list of nodes that the client can call
-	callNode := nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE IRL
+	var callNode *Node
+	if len(nodeAr) > 1 {
+		callNode = nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE IRL
+	} else {
+		callNode = nodeAr[0]
+	}
 
 	// clientIP := node.HashableString("clientIP")
 	clientRetrieveMsg := RMsg{
