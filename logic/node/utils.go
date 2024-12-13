@@ -312,7 +312,12 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 	shortURL := ShortURL(shortUrl)
 
 	// currently hardcoded the list of nodes that the client can call
-	callNode := nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE
+	var callNode *Node
+	if len(nodeAr) > 1 {
+		callNode = nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE
+	} else {
+		callNode = nodeAr[0]
+	}
 
 	// clientIP := node.HashableString("clientIP")
 	clientStoreMsg := RMsg{
