@@ -30,20 +30,83 @@ func main() {
 	log.SetOutput(io.Discard)
 
 	menuLog := log.New(os.Stdout, "MENU: ", 0)
-	// force program to wait
-	longURLAr := make([]node.LongURL, 0)
+
+	longURLAr := make([]string, 0)
 	shortURLAr := make([]string, 0)
-	// shortURLAr = append(shortURLAr, insertShort...)
 
 	time.Sleep(1500)
 	showmenu(menuLog)
 
+	// Initialisation of the Ring
+	time.Sleep(5 * time.Millisecond)
+	menuLog.Println("*******************************")
+	menuLog.Println("Initialise values for the ring:")
+	menuLog.Println("*******************************")
+
+	var NUMNODES int
+	var numURLs int
+
+	menuLog.Println("Enter number of nodes in the Chord Ring:")
+	fmt.Scanln(&NUMNODES)
+	menuLog.Println("Enter number of URLs to store in the Chord Ring:")
+	fmt.Scanln(&numURLs)
+
+	menuLog.Println("Initialising Ring...")
+
+	// switch off logs for init
+	node.InfoLog.SetOutput(io.Discard)
+	initStart := time.Now()
+	for i := 0; i < node.NUMNODES; i++ {
+		time.Sleep(1000)
+		currNode := node.InitNode(&nodeAr)
+		go currNode.Maintain()
+		currNode.InitSuccList()
+	}
+	initEnd := time.Now()
+	menuLog.Printf("---------------------------------------------------------------------\n")
+	menuLog.Printf("Time taken to init %v nodes: %v\n", NUMNODES, initEnd.Sub(initStart))
+	menuLog.Printf("---------------------------------------------------------------------\n")
+
+	file, err := os.Open("URLs.csv")
+	if err != nil {
+		menuLog.Fatalf("Failed to open file: %v", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	reader.Read()
+
+	for i := 0; i < numURLs; i++ {
+		record, err := reader.Read()
+		if err != nil {
+			break
+		}
+		longURLAr = append(longURLAr, record[0])
+	}
+
+	menuLog.Println("Storing URLS...")
+
+	storeStart := time.Now()
+	for _, val := range longURLAr {
+		short := string(clientNode.GenerateShortURL(node.LongURL(val)))
+		ipAddr := clientNode.ClientSendStoreURL(val, short, nodeAr)
+		shortURLAr = append(shortURLAr, short)
+		node.InfoLog.Println("Reached Final IP", ipAddr, "for val", val)
+	}
+	node.InfoLog.SetOutput(os.Stdout)
+	storeEnd := time.Now()
+	menuLog.Printf("---------------------------------------------------------------------\n")
+	menuLog.Printf("Time taken to store URLs: %v\n", storeEnd.Sub(storeStart))
+	menuLog.Printf("---------------------------------------------------------------------\n")
+
+	time.Sleep(1 * time.Second)
+
 	for {
 		time.Sleep(5 * time.Millisecond)
 		var input string
-		menuLog.Println("*******************************************************************************")
+		menuLog.Println("***********************************************************************************************")
 		menuLog.Println("Enter ADD, DEL, EXPERIMENT, FAULT, FIX, MENU, RETRIEVE, RETRIEVEALL, SHOW, STORE, TESTCACHE:")
-		menuLog.Println("*******************************************************************************")
+		menuLog.Println("***********************************************************************************************")
 		fmt.Scanln(&input)
 
 		switch input {
@@ -100,7 +163,7 @@ func main() {
 			fmt.Scanln(&LONGURL)
 
 			storeStart := time.Now()
-			longURLAr = append(longURLAr, node.LongURL(LONGURL))
+			longURLAr = append(longURLAr, LONGURL)
 			tempShort := string(clientNode.GenerateShortURL(node.LongURL(LONGURL)))
 			shortURLAr = append(shortURLAr, tempShort)
 			successIP := clientNode.ClientSendStoreURL(LONGURL, tempShort, nodeAr) // selects random Node to send to
@@ -160,61 +223,42 @@ func main() {
 				node.InfoLog.SetOutput(os.Stdout)
 			}
 		case "EXPERIMENT":
-			var NUMNODES int
-			var numURLs int
 			var SHOWLOGS string
+			var CACHELIMIT string
+			var CACHELIMITVALUE int
+			var numCalls int
+
 			menuLog.Println("Type 'YES' if you would like to see logs.")
 			fmt.Scanln(&SHOWLOGS)
 			if SHOWLOGS == "YES" {
 				menuLog.Println("Showing Logs...")
 			} else {
+				menuLog.Println("Discarding Logs...")
 				node.InfoLog.SetOutput(io.Discard)
 			}
-			var numCalls int
-			menuLog.Println("Enter number of nodes in the Chord Ring:")
-			fmt.Scanln(&NUMNODES)
-			for i := 0; i < node.NUMNODES; i++ {
-				time.Sleep(1000)
-				currNode := node.InitNode(&nodeAr)
-				go currNode.Maintain()
-				currNode.InitSuccList()
-			}
-
-			menuLog.Println("Enter number of URLs to store in the Chord Ring:")
-			fmt.Scanln(&numURLs)
-			file, err := os.Open("URLs.csv")
-			if err != nil {
-				log.Fatalf("Failed to open file: %v", err)
-			}
-			defer file.Close()
 
 			menuLog.Println("Enter number of random retrievals to make:")
 			fmt.Scanln(&numCalls)
 
+			menuLog.Println("Type 'YES' if you would like to set a cache limit.")
+			fmt.Scanln(&CACHELIMIT)
+			if CACHELIMIT == "YES" {
+				node.CacheLimiter = true
+			} else if CACHELIMIT == "NO" {
+				node.CacheLimiter = false
+			} else {
+				menuLog.Println("ERROR: not a valid value, defaulting to YES")
+			}
+
+			menuLog.Println("Type a number below 100 for Cache Limit.")
+			fmt.Scanln(&CACHELIMITVALUE)
+			if CACHELIMITVALUE < 100 {
+				node.CacheLimit = CACHELIMITVALUE
+			}
+
 			menuLog.Println("Running Experiment with", NUMNODES, "nodes and", numURLs, "URLs, with a total of", numCalls, "randomized retrieval calls")
 			reader := csv.NewReader(file)
 			reader.Read()
-
-			var longURLs []string
-			for i := 0; i < numURLs; i++ {
-				record, err := reader.Read()
-				if err != nil {
-					break
-				}
-				longURLs = append(longURLs, record[0])
-			}
-			storeStart := time.Now()
-			shortURLs := make([]string, 0)	
-			for _, val := range longURLs {
-				short := string(clientNode.GenerateShortURL(node.LongURL(val)))
-				ipAddr := clientNode.ClientSendStoreURL(val, short, nodeAr)
-				shortURLs = append(shortURLs, short)
-				node.InfoLog.Println("Reached Final IP", ipAddr, "for val", val)
-			}
-			storeEnd := time.Now()
-			node.InfoLog.Printf("---------------------------------------------------------------------\n")
-			node.InfoLog.Printf("Time taken to store URLs: %v\n", storeEnd.Sub(storeStart))
-			node.InfoLog.Printf("---------------------------------------------------------------------\n")
 
 			time.Sleep(1 * time.Second)
 
@@ -223,7 +267,7 @@ func main() {
 			var noCacheCalls int
 			var cacheCalls int
 			for i := 0; i < numCalls; i++ {
-				short := shortURLs[rand.Intn(len(shortURLs))]
+				short := shortURLAr[rand.Intn(len(shortURLAr))]
 
 				ncCall, ncTime := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
 				noCacheTime += ncTime
@@ -233,7 +277,7 @@ func main() {
 				cacheCalls += cCall
 			}
 
-			menuLog.Println("FINAL EXPERIMENT STATISTICS for", NUMNODES, "nodes and", numURLs ,"URLs, with a total of", numCalls, "randomized retrieval calls")
+			menuLog.Println("FINAL EXPERIMENT STATISTICS for", NUMNODES, "nodes and", numURLs, "URLs, with a total of", numCalls, "randomized retrieval calls")
 			menuLog.Println("No Cache Time:", noCacheTime, "No Cache Calls:", noCacheCalls, "Average of No Cache Time:", noCacheTime/time.Duration(numCalls))
 			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", cacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numCalls))
 

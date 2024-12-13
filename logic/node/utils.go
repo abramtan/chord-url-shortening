@@ -14,6 +14,8 @@ import (
 )
 
 var InfoLog = log.New(os.Stdout, "INFO: ", 0)
+var CacheLimiter = true
+var CacheLimit = 20
 
 // Message types.
 const (
@@ -39,9 +41,10 @@ const (
 )
 
 const (
-	M        = 10
-	NUMNODES = 20
-	REPLICAS = 5
+	M           = 10
+	NUMNODES    = 20
+	REPLICAS    = 5
+	CACHELENGTH = 20
 )
 
 type URLData struct {
@@ -191,9 +194,7 @@ func (node *Node) CallRPC(msg RMsg, IP string) (RMsg, error) {
 func (n *Node) GenerateShortURL(LongURL LongURL) ShortURL {
 	hash := sha256.Sum256([]byte(LongURL))
 	// 6-byte short URL for simplicity
-	// TODO: short url cannot just be hashed but should be a shorter url?
 	short := fmt.Sprintf("%x", hash[:6])
-	// log.Println(short)
 	return ShortURL(short)
 }
 
@@ -276,7 +277,6 @@ func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
 }
 
 // UTILITY FUNCTIONS - ClientNode
-
 func InitClient() *Node {
 	var addr = "0.0.0.0" + ":" + "1110"
 
@@ -311,15 +311,13 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 	longURL := LongURL(longUrl)
 	shortURL := ShortURL(shortUrl)
 
-	// currently hardcoded the list of nodes that the client can call
 	var callNode *Node
 	if len(nodeAr) > 1 {
-		callNode = nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE
+		callNode = nodeAr[rand.IntN(len(nodeAr)-1)]
 	} else {
 		callNode = nodeAr[0]
 	}
 
-	// clientIP := node.HashableString("clientIP")
 	clientStoreMsg := RMsg{
 		MsgType:    CLIENT_STORE_URL,
 		SenderIP:   n.GetIPAddress(),
@@ -348,15 +346,13 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool stri
 	shortURL := ShortURL(shortUrl)
 	InfoLog.Println(".....................................................")
 
-	// currently hardcoded the list of nodes that the client can call
 	var callNode *Node
 	if len(nodeAr) > 1 {
-		callNode = nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE IRL
+		callNode = nodeAr[rand.IntN(len(nodeAr)-1)]
 	} else {
 		callNode = nodeAr[0]
 	}
 
-	// clientIP := node.HashableString("clientIP")
 	clientRetrieveMsg := RMsg{
 		MsgType:       CLIENT_RETRIEVE_URL,
 		SenderIP:      n.GetIPAddress(),
