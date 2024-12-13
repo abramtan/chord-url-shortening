@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"logic/node"
+	"math/rand"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -221,6 +222,7 @@ func main() {
 			} else {
 				node.InfoLog.SetOutput(io.Discard)
 			}
+			var numCalls int
 			menuLog.Println("Enter number of nodes in the Chord Ring:")
 			fmt.Scanln(&NUMNODES)
 			for i := 0; i < node.NUMNODES; i++ {
@@ -238,8 +240,10 @@ func main() {
 			}
 			defer file.Close()
 
-			menuLog.Println("Running Experiment with", NUMNODES, "nodes and", numURLs, "URLs")
+			menuLog.Println("Enter number of random retrievals to make:")
+			fmt.Scanln(&numCalls)
 
+			menuLog.Println("Running Experiment with", NUMNODES, "nodes and", numURLs, "URLs, with a total of", numCalls, "randomized retrieval calls")
 			reader := csv.NewReader(file)
 			reader.Read()
 
@@ -252,7 +256,7 @@ func main() {
 				longURLs = append(longURLs, record[0])
 			}
 			storeStart := time.Now()
-			shortURLs := make([]string, 0)
+			shortURLs := make([]string, 0)	
 			for _, val := range longURLs {
 				short := string(clientNode.GenerateShortURL(node.LongURL(val)))
 				ipAddr := clientNode.ClientSendStoreURL(val, short, nodeAr)
@@ -270,21 +274,20 @@ func main() {
 			var cacheTime time.Duration
 			var noCacheCalls int
 			var cacheCalls int
-			numTimes := 10
-			for i := 0; i < numTimes; i++ {
-				for _, short := range shortURLs {
-					ncCall, ncTime := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
-					noCacheTime += ncTime
-					noCacheCalls += ncCall
-					cCall, cTime := retrieveAndMeasure(short, nodeAr, clientNode, "cache")
-					cacheTime += cTime
-					cacheCalls += cCall
-				}
+			for i := 0; i < numCalls; i++ {
+				short := shortURLs[rand.Intn(len(shortURLs))]
+
+				ncCall, ncTime := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
+				noCacheTime += ncTime
+				noCacheCalls += ncCall
+				cCall, cTime := retrieveAndMeasure(short, nodeAr, clientNode, "cache")
+				cacheTime += cTime
+				cacheCalls += cCall
 			}
 
-			menuLog.Println("FINAL EXPERIMENT STATISTICS for", NUMNODES, "nodes and", numURLs, "URLs")
-			menuLog.Println("No Cache Time:", noCacheTime, "No Cache Calls:", noCacheCalls, "Average of No Cache Time:", noCacheTime/time.Duration(numTimes*len(shortURLs)))
-			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", cacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numTimes*len(shortURLs)))
+			menuLog.Println("FINAL EXPERIMENT STATISTICS for", NUMNODES, "nodes and", numURLs ,"URLs, with a total of", numCalls, "randomized retrieval calls")
+			menuLog.Println("No Cache Time:", noCacheTime, "No Cache Calls:", noCacheCalls, "Average of No Cache Time:", noCacheTime/time.Duration(numCalls))
+			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", cacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numCalls))
 
 			if !(SHOWLOGS == "YES") {
 				node.InfoLog.SetOutput(os.Stdout)
