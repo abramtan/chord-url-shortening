@@ -23,61 +23,9 @@ func main() {
 	log.SetOutput(io.Discard)
 
 	nodeAr := make([]*node.Node, 0)
-	// go func() {
-	// 	log.Println(http.ListenAndServe("localhost:6060", nil))
-	// }()
-
-	// Initialize nodes
-	// for i := 0; i < node.NUMNODES; i++ {
-	// 	time.Sleep(1000)
-	// 	currNode := node.InitNode(&nodeAr)
-	// 	go currNode.Maintain()  // fix_fingers, stabilise, check_pred, maintain_succ
-	// 	currNode.InitSuccList() // TODO: should this be here?
-	// }
-
-	// time.Sleep(time.Second * 2)
-
-	// node.InfoLog.Print("testing for short and long url storing and generation")
 
 	// testing URL Shortening and Retrieval
 	clientNode := node.InitClient()
-
-	// store an array of long urls
-	// insertLong := []string{"http://example.com/long4-trial", "www.hello.com", "www.capstone.com", "www.rubbish.com", "www.trouble.com", "www.trouble.com?query=70", "www.distributedsystems.com", "www.golang.com", "www.crying.com"}
-	// insertShort := make([]string, 0)
-
-	// storeStart := time.Now()
-	// for _, val := range insertLong {
-	// 	shortVal := string(clientNode.GenerateShortURL(node.LongURL(val)))
-	// 	finalIP := clientNode.ClientSendStoreURL(val, shortVal, nodeAr)
-	// 	insertShort = append(insertShort, shortVal)
-	// 	node.InfoLog.Println("Reached Final IP", finalIP, "for val", val)
-	// }
-	// storeEnd := time.Now()
-	// node.InfoLog.Printf("---------------------------------------------------------------------\n")
-	// node.InfoLog.Printf("Time taken to store URLs: %v\n", storeEnd.Sub(storeStart))
-	// node.InfoLog.Printf("---------------------------------------------------------------------\n")
-
-	// time.Sleep(5 * time.Second)
-
-	// retrieveStart := time.Now()
-	// for _, short := range insertShort {
-	// 	retrShort, _, shortFound := clientNode.ClientRetrieveURL(short, nodeAr, "cache")
-
-	// 	if shortFound {
-	// 		node.InfoLog.Printf("URL Retrieved: %s -> %s\n", string(retrShort.ShortURL), retrShort.LongURL)
-	// 	} else {
-	// 		node.InfoLog.Println("URL not found")
-	// 	}
-	// }
-
-	// retrieveEnd := time.Now()
-	// node.InfoLog.Printf("---------------------------------------------------------------------\n")
-	// node.InfoLog.Printf("Time taken to retrieve URLs: %v\n", retrieveEnd.Sub(retrieveStart))
-	// node.InfoLog.Printf("---------------------------------------------------------------------\n")
-
-	// time.Sleep(5 * time.Second)
-	// node.InfoLog.Println("nodeAr:", nodeAr)
 
 	log.SetOutput(io.Discard)
 
@@ -94,7 +42,7 @@ func main() {
 		time.Sleep(5 * time.Millisecond)
 		var input string
 		menuLog.Println("*******************************************************************************")
-		menuLog.Println("Enter ADD, DEL, STORE, RETRIEVE, RETRIEVEALL, FAULT, FIX, SHOW, TESTCACHE, EXPERIMENT, LONGURL, MENU:")
+		menuLog.Println("Enter ADD, DEL, EXPERIMENT, FAULT, FIX, MENU, RETRIEVE, RETRIEVEALL, SHOW, STORE, TESTCACHE:")
 		menuLog.Println("*******************************************************************************")
 		fmt.Scanln(&input)
 
@@ -292,8 +240,6 @@ func main() {
 			if !(SHOWLOGS == "YES") {
 				node.InfoLog.SetOutput(os.Stdout)
 			}
-		case "LONGURL":
-			menuLog.Println(longURLAr)
 		case "SHOW":
 			for _, printNode := range nodeAr {
 				printNode.Mu.Lock()
@@ -311,8 +257,6 @@ func main() {
 				}
 				printNode.Mu.Unlock()
 			}
-		case "MENU":
-			showmenu(menuLog)
 		case "TESTCACHE":
 			var RETRIEVEIP string
 			var SHORT string
@@ -337,6 +281,8 @@ func main() {
 			} else {
 				menuLog.Println("Invalid input...")
 			}
+		case "MENU":
+			showmenu(menuLog)
 		default:
 			menuLog.Println("Invalid input...")
 		}
@@ -381,7 +327,6 @@ func showmenu(menuLog *log.Logger) {
 	menuLog.Println("Send FIX to revive a specific node")
 	menuLog.Println("Send SHOW to current status of all nodes")
 	menuLog.Println("Send EXPERIMENT to set specific variables")
-	menuLog.Println("Send LONGURL to get a list of current long urls")
 	menuLog.Println("Press MENU to see the menu")
 	menuLog.Println("****************************************************************")
 }
