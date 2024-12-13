@@ -93,7 +93,7 @@ func main() {
 		time.Sleep(5 * time.Millisecond)
 		var input string
 		menuLog.Println("*******************************************************************************")
-		menuLog.Println("   Enter ADD, DEL, STORE, RETRIEVE, RETRIEVEALL, FAULT, FIX, SHOW, TESTCACHE, LONGURL, MENU:  	")
+		menuLog.Println("Enter ADD, DEL, STORE, RETRIEVE, RETRIEVEALL, FAULT, FIX, SHOW, TESTCACHE, EXPERIMENT, LONGURL, MENU:")
 		menuLog.Println("*******************************************************************************")
 		fmt.Scanln(&input)
 
@@ -213,6 +213,14 @@ func main() {
 		case "EXPERIMENT":
 			var NUMNODES int
 			var numURLs int
+			var SHOWLOGS string
+			menuLog.Println("Type 'YES' if you would like to see logs.")
+			fmt.Scanln(&SHOWLOGS)
+			if SHOWLOGS == "YES" {
+				menuLog.Println("Showing Logs...")
+			} else {
+				node.InfoLog.SetOutput(io.Discard)
+			}
 			menuLog.Println("Enter number of nodes in the Chord Ring:")
 			fmt.Scanln(&NUMNODES)
 			for i := 0; i < node.NUMNODES; i++ {
@@ -229,6 +237,8 @@ func main() {
 				log.Fatalf("Failed to open file: %v", err)
 			}
 			defer file.Close()
+
+			menuLog.Println("Running Experiment with", NUMNODES, "nodes and", numURLs, "URLs")
 
 			reader := csv.NewReader(file)
 			reader.Read()
@@ -255,7 +265,7 @@ func main() {
 			node.InfoLog.Printf("---------------------------------------------------------------------\n")
 
 			time.Sleep(1 * time.Second)
-			
+
 			var noCacheTime time.Duration
 			var cacheTime time.Duration
 			var noCacheCalls int
@@ -272,10 +282,13 @@ func main() {
 				}
 			}
 
-			menuLog.Println("FINAL EXPERIMENT STATISTICS for", NUMNODES, "nodes and", numURLs ,"URLs")
+			menuLog.Println("FINAL EXPERIMENT STATISTICS for", NUMNODES, "nodes and", numURLs, "URLs")
 			menuLog.Println("No Cache Time:", noCacheTime, "No Cache Calls:", noCacheCalls, "Average of No Cache Time:", noCacheTime/time.Duration(numTimes*len(shortURLs)))
 			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", cacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numTimes*len(shortURLs)))
 
+			if !(SHOWLOGS == "YES") {
+				node.InfoLog.SetOutput(os.Stdout)
+			}
 		case "LONGURL":
 			menuLog.Println(longURLAr)
 		case "SHOW":
@@ -346,6 +359,10 @@ func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.N
 	return calls, timeTaken
 }
 
+// TODO: Clean up the rest of the code
+// TODO: add Init function so that we can set num nodes and num urls
+// TODO: Experiment can be set to clear before adding in
+
 /* Show a list of options to choose from.*/
 func showmenu(menuLog *log.Logger) {
 	// Enter ADD, DEL, STORE, RETRIEVE, RETRIEVEALL, FAULT, FIX, SHOW, LONGURL, MENU:
@@ -360,6 +377,7 @@ func showmenu(menuLog *log.Logger) {
 	menuLog.Println("Send FAULT to fail a specific node")
 	menuLog.Println("Send FIX to revive a specific node")
 	menuLog.Println("Send SHOW to current status of all nodes")
+	menuLog.Println("Send EXPERIMENT to set specific variables")
 	menuLog.Println("Send LONGURL to get a list of current long urls")
 	menuLog.Println("Press MENU to see the menu")
 	menuLog.Println("****************************************************************")
