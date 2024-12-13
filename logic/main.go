@@ -56,7 +56,7 @@ func main() {
 	// switch off logs for init
 	node.InfoLog.SetOutput(io.Discard)
 	initStart := time.Now()
-	for i := 0; i < node.NUMNODES; i++ {
+	for i := 0; i < NUMNODES; i++ {
 		time.Sleep(1000)
 		currNode := node.InitNode(&nodeAr)
 		go currNode.Maintain()

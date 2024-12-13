@@ -42,7 +42,6 @@ const (
 
 const (
 	M           = 10
-	NUMNODES    = 20
 	REPLICAS    = 5
 	CACHELENGTH = 20
 )
