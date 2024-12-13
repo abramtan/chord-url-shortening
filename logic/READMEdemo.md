@@ -56,7 +56,7 @@ Enter `ADD` three more times. This will cause more nodes to be added, which will
 
 **Correctness:** Enter `SHOW` to see the network's status. It should now show all nodes that have been created thus far. The nodes should all have the correct successors and predecessors, such that it forms a ring.
 
-## Successor List
+## Successor List and Data Replication
 
 Enter `ADD` four more times to add some more nodes, for seven in total. Then, enter `STORE` followed by any URL to store it in the network.
 
@@ -66,7 +66,7 @@ Enter `ADD` four more times to add some more nodes, for seven in total. Then, en
 
 _Continued from "Successor List" above._
 
-**Correctness:** The node which stored the URL should also have a cache entry for it.
+**Correctness:** The node that receives the `STORE` request should also have a cache entry for the URL.
 
 # Fault Tolerance
 
@@ -74,7 +74,7 @@ _Continued from "Successor List" above._
 
 In the interactive menu, enter `DEL`, followed by the IP address of the node you wish to trigger to voluntarily leave. The node will send messages to its successor and predecessor to facilitate the voluntary leaving procedure, and then freeze.
 
-**Correctness:** Enter `SHOW` to see the network's status. The node will still show up in the menu with successors and predecessors unchanged (since `DEL` essentially freezes the node), but the successor and predecessor of the node that left should themselves have changed their own predecessor resp. successor to form a new, fixed ring.
+**Correctness:** Enter `SHOW` to see the network's status. The node will still show up in the menu with successors and predecessors unchanged (since `DEL` essentially freezes the node). The leaving node's successor predecessor should be set to the leaving node's predecessor, and it should have obtained the keys from the leaving node. The leaving node's predecessor successor list should now have the last node of the leaving node's successor list. 
 
 ## Fail-Stop Faults: Permanent Fault
 
