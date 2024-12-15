@@ -6,8 +6,8 @@ import { ThemeProvider } from '@/contexts/ThemeContext'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'TinyURL Clone',
-  description: 'A modern, responsive URL shortener built with Next.js',
+  title: 'Chord URL Shortening',
+  description: 'A modern, responsive URL shortener built with Next.js, powered by a distributed Chord-based backend.',
 }
 
 export default function RootLayout({
