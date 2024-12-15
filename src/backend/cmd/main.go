@@ -1,6 +1,7 @@
 package main
 
 import (
+	"chord-url-shortening/internal/api"
 	"chord-url-shortening/internal/chord"
 	"chord-url-shortening/internal/utils"
 	"context"
@@ -49,6 +50,9 @@ func main() {
 
 	// Initialize Gin router
 	router := gin.Default()
+
+	router.POST("/shorten", api.ShortenURL)
+	router.GET("/long-url/:short_code", api.GetLongURL)
 
 	// Define health check endpoint
 	router.GET("/api/v1/health", func(c *gin.Context) {
@@ -132,7 +136,7 @@ func main() {
 
 	node.JoinRingIfExistsElseCreateRing() // create ring if no ring, else join existing ring
 
-    log.Printf("%+v", node)
+	log.Printf("%+v", node)
 }
 
 // Function to start the gRPC server
