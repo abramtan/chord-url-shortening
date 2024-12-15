@@ -1,0 +1,12 @@
+Menu Logger:	2024/11/20 13:51:29 main.go:125: ********************************
+Menu Logger:	2024/11/20 13:51:29 main.go:126: 		MENU
+Menu Logger:	2024/11/20 13:51:29 main.go:127: Send ADD to add node
+Menu Logger:	2024/11/20 13:51:29 main.go:128: Send DEL to delete a random node
+Menu Logger:	2024/11/20 13:51:29 main.go:129: Send STORE to add a new tinyurl
+Menu Logger:	2024/11/20 13:51:29 main.go:130: Send RETRIEVE to get a long url
+Menu Logger:	2024/11/20 13:51:29 main.go:131: Send LONGURL to get a list of current long urls
+Menu Logger:	2024/11/20 13:51:29 main.go:132: Press MENU to see the menu
+Menu Logger:	2024/11/20 13:51:29 main.go:133: ********************************
+Menu Logger:	2024/11/20 13:51:29 main.go:81: ********************************
+Menu Logger:	2024/11/20 13:51:29 main.go:82:      Enter ADD, DEL, STORE, MENU:    
+Menu Logger:	2024/11/20 13:51:29 main.go:83: ********************************
