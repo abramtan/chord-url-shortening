@@ -12,27 +12,38 @@ import (
 	"os"
 	"slices"
 	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+var (
+	nodeAr     []*node.Node
+	clientNode *node.Node
+	menuLog    *log.Logger
+	longURLAr  []string
+	shortURLAr []string
+	// NUMNODES   int
+	// numURLs    int
 )
 
 func main() {
-
 	go func() {
 		node.InfoLog.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
 	log.SetOutput(io.Discard)
 
-	nodeAr := make([]*node.Node, 0)
+	nodeAr = make([]*node.Node, 0)
 
 	// testing URL Shortening and Retrieval
-	clientNode := node.InitClient()
+	clientNode = node.InitClient()
 
 	log.SetOutput(io.Discard)
 
-	menuLog := log.New(os.Stdout, "MENU: ", 0)
+	menuLog = log.New(os.Stdout, "MENU: ", 0)
 
-	longURLAr := make([]string, 0)
-	shortURLAr := make([]string, 0)
+	longURLAr = make([]string, 0)
+	shortURLAr = make([]string, 0)
 
 	time.Sleep(1500)
 	showmenu(menuLog)
@@ -100,6 +111,9 @@ func main() {
 	menuLog.Printf("---------------------------------------------------------------------\n")
 
 	time.Sleep(1 * time.Second)
+
+	// Start the Gin API server in a separate goroutine
+	go startAPIServer()
 
 	for {
 		time.Sleep(5 * time.Millisecond)
@@ -373,4 +387,119 @@ func showmenu(menuLog *log.Logger) {
 	menuLog.Println("Send EXPERIMENT to set specific variables")
 	menuLog.Println("Press MENU to see the menu")
 	menuLog.Println("****************************************************************")
+}
+
+func startAPIServer() {
+	r := gin.Default()
+
+	// r.POST("/add", func(c *gin.Context) {
+	// 	handleAddNode()
+	// 	c.JSON(http.StatusOK, gin.H{"status": "Node added"})
+	// })
+
+	// r.POST("/del", func(c *gin.Context) {
+	// 	var json struct {
+	// 		IP string `json:"ip"`
+	// 	}
+	// 	if err := c.ShouldBindJSON(&json); err != nil {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 		return
+	// 	}
+
+	// 	if handleDeleteNodeByIP(json.IP) {
+	// 		c.JSON(http.StatusOK, gin.H{"status": "Node deleted"})
+	// 	} else {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid IP Address"})
+	// 	}
+	// })
+
+	// r.POST("/fault", func(c *gin.Context) {
+	// 	var json struct {
+	// 		IP string `json:"ip"`
+	// 	}
+	// 	if err := c.ShouldBindJSON(&json); err != nil {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 		return
+	// 	}
+
+	// 	if handleFaultNodeByIP(json.IP) {
+	// 		c.JSON(http.StatusOK, gin.H{"status": "Node faulted"})
+	// 	} else {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid IP Address"})
+	// 	}
+	// })
+
+	// r.POST("/fix", func(c *gin.Context) {
+	// 	var json struct {
+	// 		IP string `json:"ip"`
+	// 	}
+	// 	if err := c.ShouldBindJSON(&json); err != nil {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 		return
+	// 	}
+
+	// 	if handleFixNodeByIP(json.IP) {
+	// 		c.JSON(http.StatusOK, gin.H{"status": "Node fixed"})
+	// 	} else {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid IP Address"})
+	// 	}
+	// })
+
+	r.POST("/store", func(c *gin.Context) {
+		var json struct {
+			LongURL string `json:"long_url"`
+		}
+		if err := c.ShouldBindJSON(&json); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		short_url, short_code, ip, timeTaken := handleStoreURLAPI(json.LongURL)
+		c.JSON(http.StatusOK, gin.H{"short_url": short_url, "short_code": short_code, "ip": ip, "time_taken": timeTaken.String()})
+	})
+
+	r.GET("/retrieve", func(c *gin.Context) {
+		shortURL := c.Query("short_url")
+		if !slices.Contains(shortURLAr, shortURL) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ShortURL"})
+			return
+		}
+
+		acquiredURL, calls, found := clientNode.ClientRetrieveURL(shortURL, nodeAr, "nocache")
+
+		if found {
+			c.JSON(http.StatusOK, gin.H{
+				"long_url":  acquiredURL.LongURL,
+				"short_url": acquiredURL.ShortURL,
+				"calls":     calls,
+			})
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"long_url":   "not found",
+				"short_code": shortURL,
+			})
+		}
+
+	})
+
+	// r.GET("/show", func(c *gin.Context) {
+	// 	info := handleShowAPI()
+	// 	c.JSON(http.StatusOK, info)
+	// })
+
+	r.Run(":8080")
+}
+
+func handleStoreURLAPI(LONGURL string) (string, string, string, time.Duration) {
+	storeStart := time.Now()
+	longURLAr = append(longURLAr, LONGURL)
+	tempShort := string(clientNode.GenerateShortURL(node.LongURL(LONGURL)))
+	shortURLAr = append(shortURLAr, tempShort)
+	successIP := clientNode.ClientSendStoreURL(LONGURL, tempShort, nodeAr)
+	storeEnd := time.Now()
+
+	base_url := "http://localhost:3000/"
+	short_url := base_url + tempShort
+
+	return short_url, tempShort, string(successIP), storeEnd.Sub(storeStart)
 }
