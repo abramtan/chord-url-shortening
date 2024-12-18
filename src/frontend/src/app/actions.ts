@@ -2,7 +2,7 @@
 
 export async function shortenUrl(longUrl: string): Promise<string> {
   // Call the backend API to generate the short URL
-  const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/shorten`, {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/store`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -19,16 +19,21 @@ export async function shortenUrl(longUrl: string): Promise<string> {
 }
 
 export async function getLongUrl(id: string): Promise<string> {
-  // Call the backend API to retrieve the original long URL
-  const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/long-url/${id}`, {
-    method: "GET",
-  });
+  try {
+    // Call the backend API to retrieve the original long URL
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/retrieve?short_url=${encodeURIComponent(id)}`, {
+      method: "GET",
+    });
 
-  if (!response.ok) {
-    // Return a fallback URL if the short URL does not exist
-    return "https://google.com";
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch data");
+    }
+
+    const data = await response.json();
+    return data.long_url; // Return the retrieved long URL
+  } catch (error: any) {
+    console.error("Error fetching short URL data:", error.message);
+    throw error;
   }
-
-  const data = await response.json();
-  return data.long_url; // Return the retrieved long URL
 }

@@ -9,14 +9,20 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/rpc"
+	"os"
 	"sync"
 )
+
+var InfoLog = log.New(os.Stdout, "INFO: ", 0)
+var CacheLimiter = true
+var CacheLimit = 20
 
 // Message types.
 const (
 	PING                       = "ping"                       // Used to check predecessor.
 	ACK                        = "ack"                        // Used for general acknowledgements.
 	FIND_SUCCESSOR             = "find_successor"             // Used to find successor.
+	FIND_SUCCESSOR_ADD         = "find_successor_add"         // used to check hop count
 	CLOSEST_PRECEDING_NODE     = "closest_preceding_node"     // Used to find the closest preceding node, given a successor id.
 	GET_PREDECESSOR            = "get_predecessor"            // Used to get the predecessor of some node.
 	CREATE_SUCCESSOR_LIST      = "create_successor_list"      // Used in RPC call to get node.Successor
@@ -32,6 +38,12 @@ const (
 	SEND_REPLICA_DATA          = "send_replica_data"          // used to send node data to successors
 	NOTIFY_SUCCESSOR_LEAVING   = "notify_successor_leaving"   // Voluntary leaving - telling the successor
 	NOTIFY_PREDECESSOR_LEAVING = "notify_predecessor_leaving" // Voluntary leaving - telling the predecessor
+)
+
+const (
+	M           = 10
+	REPLICAS    = 5
+	CACHELENGTH = 20
 )
 
 type URLData struct {
@@ -54,7 +66,8 @@ type RMsg struct {
 	NewPredecessor HashableString       // Informing successor of its new predecessor
 	LastNode       HashableString       // Last node in the successor list of the node leaving
 	Timestamp      int64
-	cacheString    string
+	CacheString    string
+	CheckFlow      []HashableString
 }
 
 type Node struct {
@@ -64,9 +77,73 @@ type Node struct {
 	fingerTable   []HashableString
 	successor     HashableString
 	predecessor   HashableString
-	UrlMap        map[HashableString]map[ShortURL]URLData
+	UrlMap        URLMap
 	SuccList      []HashableString
 	FailFlag      bool
+	StoreHop      bool
+}
+
+type URLMap struct {
+	Mu     sync.Mutex
+	UrlMap map[HashableString]map[ShortURL]URLData
+}
+
+type Entry struct {
+	ShortURL  ShortURL
+	LongURL   LongURL
+	Timestamp int64
+}
+
+func (m *URLMap) copyChild(idx HashableString) (map[ShortURL]URLData, bool) {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+	newMap := make(map[ShortURL]URLData)
+	target, found := m.UrlMap[idx]
+	if found {
+		for k, v := range target {
+			newMap[k] = v
+		}
+		return newMap, found
+	}
+	return nil, found
+}
+
+func (m *URLMap) copyGrandchild(idx HashableString, childIdx ShortURL) (URLData, bool) {
+	res, found := m.copyChild(idx)
+	if found {
+		res2, found2 := res[childIdx]
+		return res2, found2
+	} else {
+		return URLData{}, found
+	}
+}
+
+func (m *URLMap) copyGrandchildWithoutFoundCheck(idx HashableString, childIdx ShortURL) URLData {
+	res, _ := m.copyGrandchild(idx, childIdx)
+	return res
+}
+
+func (m *URLMap) copyChildWithoutFoundCheck(idx HashableString) map[ShortURL]URLData {
+	res, _ := m.copyChild(idx)
+	return res
+}
+
+func (m *URLMap) update(idx HashableString, entry map[ShortURL]URLData) {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+	m.UrlMap[idx] = entry
+}
+
+func (m *URLMap) updateChild(idx HashableString, childIdx ShortURL, entry URLData) {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+	m.UrlMap[idx][childIdx] = entry
+}
+
+func (m *URLMap) delete(idx HashableString) {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+	delete(m.UrlMap, idx)
 }
 
 type Hash uint64 //[32]byte
@@ -83,19 +160,6 @@ func nilLongURL() LongURL {
 
 func (u LongURL) isNil() bool {
 	return u == nilLongURL()
-}
-
-const (
-	M        = 10
-	REPLICAS = 3
-	// CACHE_SIZE         = 5
-	// REPLICATION_FACTOR = 2
-)
-
-type Entry struct {
-	ShortURL  ShortURL
-	LongURL   LongURL
-	Timestamp int64
 }
 
 // UTILITY FUNCTIONS - Node
@@ -129,9 +193,7 @@ func (node *Node) CallRPC(msg RMsg, IP string) (RMsg, error) {
 func (n *Node) GenerateShortURL(LongURL LongURL) ShortURL {
 	hash := sha256.Sum256([]byte(LongURL))
 	// 6-byte short URL for simplicity
-	// TODO: short url cannot just be hashed but should be a shorter url?
 	short := fmt.Sprintf("%x", hash[:6])
-	// log.Println(short)
 	return ShortURL(short)
 }
 
@@ -159,8 +221,8 @@ func (n *Node) GetPredecessor() HashableString {
 	return n.predecessor
 }
 
-func (n *Node) GetURLMap() map[HashableString]map[ShortURL]URLData {
-	return n.UrlMap
+func (n *Node) GetURLMap() *URLMap {
+	return &n.UrlMap
 }
 
 func (n *Node) GetSuccList() []HashableString {
@@ -214,7 +276,6 @@ func (id Hash) inBetween(start Hash, until Hash, includingUntil bool) bool {
 }
 
 // UTILITY FUNCTIONS - ClientNode
-
 func InitClient() *Node {
 	var addr = "0.0.0.0" + ":" + "1110"
 
@@ -249,16 +310,22 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 	longURL := LongURL(longUrl)
 	shortURL := ShortURL(shortUrl)
 
-	// currently hardcoded the list of nodes that the client can call
-	callNode := nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE
+	var callNode *Node
+	if len(nodeAr) > 1 {
+		callNode = nodeAr[rand.IntN(len(nodeAr)-1)]
+	} else {
+		callNode = nodeAr[0]
+	}
 
-	// clientIP := node.HashableString("clientIP")
 	clientStoreMsg := RMsg{
 		MsgType:    CLIENT_STORE_URL,
 		SenderIP:   n.GetIPAddress(),
 		RecieverIP: callNode.GetIPAddress(),
 		StoreEntry: Entry{ShortURL: shortURL, LongURL: longURL},
+		HopCount:   0,
+		CheckFlow:  make([]HashableString, 0),
 	}
+
 	log.Printf("Client sending CLIENT_STORE_URL message to Node %s\n", callNode.GetIPAddress())
 	// for checking purposes
 	reply, err := n.CallRPC(clientStoreMsg, string(callNode.GetIPAddress()))
@@ -266,34 +333,42 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 		log.Println("Error in ClientSendStoreURL", err)
 	}
 	log.Println("NODE :", reply.TargetIP, "successfully stored shortURL.")
+	InfoLog.Println("***************************************************")
+	InfoLog.Println("Storing LongURL:", longURL)
+	InfoLog.Println("Store Hop Count:", reply.HopCount, "---", "Store Hop Flow:", reply.CheckFlow)
 	return reply.TargetIP
 }
 
-// func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool string) (Entry, bool) {
-func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node) (Entry, bool) {
+func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool string) (Entry, int, bool) {
+	log.Println("Client Retrieving URL method")
 	// longURL := LongURL(longUrl)
 	shortURL := ShortURL(shortUrl)
+	InfoLog.Println(".....................................................")
 
-	// currently hardcoded the list of nodes that the client can call
-	callNode := nodeAr[rand.IntN(len(nodeAr)-1)] // THIS IS NOT AVAILABLE IRL
+	var callNode *Node
+	if len(nodeAr) > 1 {
+		callNode = nodeAr[rand.IntN(len(nodeAr)-1)]
+	} else {
+		callNode = nodeAr[0]
+	}
 
-	// clientIP := node.HashableString("clientIP")
 	clientRetrieveMsg := RMsg{
 		MsgType:       CLIENT_RETRIEVE_URL,
 		SenderIP:      n.GetIPAddress(),
 		RecieverIP:    callNode.GetIPAddress(),
 		RetrieveEntry: Entry{ShortURL: shortURL, LongURL: nilLongURL()},
-		// cacheString:   cacheBool,
+		CacheString:   cacheBool,
+		HopCount:      0,
+		CheckFlow:     make([]HashableString, 0),
 	}
-	fmt.Println("clientRetrieveMsg: ", clientRetrieveMsg)
-	// fmt.Println("clientRetrieveMsg cachestring: ", clientRetrieveMsg.cacheString)
 
 	log.Printf("Client sending CLIENT_RETRIEVE_URL message to Node %s\n", callNode.GetIPAddress())
 	// for checking purposes
 	reply, err := n.CallRPC(clientRetrieveMsg, string(callNode.GetIPAddress()))
-	fmt.Println("reply in clientRetrievalURL: ", reply)
 	if err != nil {
 		log.Println("Error in ClientRetrieveURL", err)
 	}
-	return reply.RetrieveEntry, !reply.RetrieveEntry.LongURL.isNil()
+	InfoLog.Println("Retrieving Entry:", reply.RetrieveEntry, "--- Found:", !reply.RetrieveEntry.LongURL.isNil())
+	InfoLog.Println("Retrieve Hop Count:", reply.HopCount, "---", "Store Hop Flow:", reply.CheckFlow)
+	return reply.RetrieveEntry, reply.HopCount, !reply.RetrieveEntry.LongURL.isNil()
 }
