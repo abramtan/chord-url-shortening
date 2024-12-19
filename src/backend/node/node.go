@@ -44,7 +44,6 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 		log.Println("Received CLIENT_RETRIEVE_URL message")
 		node.Mu.Lock()
 		ShortURL := msg.RetrieveEntry.ShortURL
-		fmt.Println("short url in handleinc is: ", ShortURL)
 		node.Mu.Unlock()
 		LongURL, currentHC, currFlow, found := node.RetrieveURL(ShortURL, msg.HopCount, msg.CheckFlow, msg.CacheString)
 		if found {

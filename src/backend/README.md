@@ -74,7 +74,7 @@ _Continued from "Successor List" above._
 
 In the interactive menu, enter `DEL`, followed by the IP address of the node you wish to trigger to voluntarily leave. The node will send messages to its successor and predecessor to facilitate the voluntary leaving procedure, and then freeze.
 
-**Correctness:** Enter `SHOW` to see the network's status. The node will still show up in the menu with successors and predecessors unchanged (since `DEL` essentially freezes the node). The leaving node's successor predecessor should be set to the leaving node's predecessor, and it should have obtained the keys from the leaving node. The leaving node's predecessor successor list should now have the last node of the leaving node's successor list. 
+**Correctness:** Enter `SHOW` to see the network's status. The node will still show up in the menu with successors and predecessors unchanged (since `DEL` essentially freezes the node). The leaving node's successor predecessor should be set to the leaving node's predecessor, and it should have obtained the keys from the leaving node. The leaving node's predecessor successor list should now have the last node of the leaving node's successor list.
 
 ## Fail-Stop Faults: Permanent Fault
 
@@ -101,6 +101,7 @@ Then, enter `FIX`, followed by the IP address of the same node. The node will un
 # Scalability
 
 Our main mechanisms for addressing scalability are:
+
 - The Chord system itself
 - Performance of our cache
 
@@ -134,7 +135,7 @@ The above two metrics are recorded once with the cache activated, and another ti
 
 ### Experiment 1: Impact of number of nodes in the Chord Ring on the retrieval time
 
-> This experiment is to test how the number of calls made and the time taken scales with an increasing number of nodes in the system. 
+> This experiment is to test how the number of calls made and the time taken scales with an increasing number of nodes in the system.
 
 Independent variable:
 
@@ -157,16 +158,3 @@ Fixed variables:
 
 - Number of nodes in Chord ring
 - Quantity of retrieval calls: 2000
-
-### Experiment 3: Impact of absolute number of calls in the Chord Ring on the retrieval time
-
-> This experiment is to test whether the absolute number of retrieval calls in the Chord ring impacts the average time taken per call.
-
-Independent variable:
-
-- Absolute number of URLs and number of calls
-
-Fixed variables:
-
-- Ratio of number of URLs stored to number of calls: 1:2 ratio
-- Number of nodes in Chord ring
