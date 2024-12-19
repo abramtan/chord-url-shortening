@@ -292,8 +292,8 @@ func main() {
 			}
 
 			menuLog.Println("FINAL EXPERIMENT STATISTICS for", NUMNODES, "nodes and", numURLs, "URLs, with a total of", numCalls, "randomized retrieval calls")
-			menuLog.Println("No Cache Time:", noCacheTime, "No Cache Calls:", noCacheCalls, "Average of No Cache Time:", noCacheTime/time.Duration(numCalls))
-			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", cacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numCalls))
+			menuLog.Println("No Cache Time:", noCacheTime, "No Cache Calls:", noCacheCalls, "Average of No Cache Time:", noCacheTime/time.Duration(numCalls), "Average of No Cache Calls:", float64(noCacheCalls)/float64(numCalls))
+			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", cacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numCalls), "Average of Cache Calls:", float64(cacheCalls)/float64(numCalls))
 
 			if !(SHOWLOGS == "YES") {
 				node.InfoLog.SetOutput(os.Stdout)
