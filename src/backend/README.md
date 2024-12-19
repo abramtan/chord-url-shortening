@@ -29,6 +29,8 @@ The process of storing retrieving a short URLs within the Chord ring follows the
 
 To increase robustness, each Chord node maintains a successor list of size `r`, and it contains the first `r` successors. If the immediate successor does not respond, the node can substitute the next entry in the successor list.
 
+Successor list also helps in maintaining the correctness of the ring. The node no longer only relies on it's finger table to detect it's current successor. Now, at least `r` nodes must fail before the node encounters issues. This is an improbable scenario. 
+
 #### Data Replication
 
 We have implemented data replication as part of our fault tolerance as this ensures high availability by storing multiple copies of data on successor nodes. We have also used timestamp-based conflict resolution to ensure consistency during updates.
@@ -86,7 +88,10 @@ In the interactive menu, enter `FAULT`, followed by the IP address of the node y
 >   - The voluntary leaving procedure is an optimization that allows the Chord network to more predictably account for the leaving node than if it had simply frozen. However, both should eventually be successfully recovered from.
 > - In our interactive menu, nodes that get `FAULT`ed can be recovered with `FIX` (elaborated on later), while `DEL` is permanent.
 
-**Correctness:** Enter `SHOW` to see the network's status. The node will still show up in the menu with successors and predecessors unchanged (since `FAULT` essentially freezes the node), but the successor and predecessor of the node that left should themselves have changed their own predecessor resp. successor to form a new, fixed ring.
+**Correctness:** Enter `SHOW` to see the network's status. The node will still show up in the menu with successors and predecessors unchanged (since `FAULT` essentially freezes the node), but the successor and predecessor of the node that left should themselves have changed their own predecessor resp. successor to form a new, fixed ring. Verify that keys have shifted properly.
+
+![alt text](../../figures/before_failure_detected.png)
+![alt text](../../figures/after_failure_detected.png)
 
 ## Fail-Stop Faults: Intermittent Fault
 
