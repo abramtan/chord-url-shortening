@@ -1,6 +1,6 @@
 # chord-url-shortening
 
-The chord-url-shortening project is a distributed computing implementation of url shortening using Google's Chord protocol, written in Golang. This project is for the 50.041 Distributed Systems and Computing course. The main goals of this project is to build a scalable and fault tolerant url-shortener, leveraging a distributed hash table (DHT) architecture. The project is built with a Golang backend and a Next.js frontend.
+The chord-url-shortening project is a distributed computing implementation of url shortening using Google's Chord protocol, written in Golang. This project is for the 50.041 Distributed Systems and Computing course. The main goals of this project is to build a scalable and fault tolerant url-shortener, leveraging a distributed hash table (DHT) architecture. The project is built with a Golang backend and a Next.js frontend. For more details, check out the slides and report found in `/docs`.
 
 ## Table of Contents
 
