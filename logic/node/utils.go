@@ -325,7 +325,6 @@ func (n *Node) ClientSendStoreURL(longUrl string, shortUrl string, nodeAr []*Nod
 		HopCount:   0,
 		CheckFlow:  make([]HashableString, 0),
 	}
-
 	log.Printf("Client sending CLIENT_STORE_URL message to Node %s\n", callNode.GetIPAddress())
 	// for checking purposes
 	reply, err := n.CallRPC(clientStoreMsg, string(callNode.GetIPAddress()))
@@ -361,10 +360,13 @@ func (n *Node) ClientRetrieveURL(shortUrl string, nodeAr []*Node, cacheBool stri
 		HopCount:      0,
 		CheckFlow:     make([]HashableString, 0),
 	}
+	fmt.Println("clientRetrieveMsg: ", clientRetrieveMsg)
+	// fmt.Println("clientRetrieveMsg cachestring: ", clientRetrieveMsg.cacheString)
 
 	log.Printf("Client sending CLIENT_RETRIEVE_URL message to Node %s\n", callNode.GetIPAddress())
 	// for checking purposes
 	reply, err := n.CallRPC(clientRetrieveMsg, string(callNode.GetIPAddress()))
+	fmt.Println("reply in clientRetrievalURL: ", reply)
 	if err != nil {
 		log.Println("Error in ClientRetrieveURL", err)
 	}
