@@ -1,185 +1,172 @@
-# chord-url-shortening (Mac)
+# Demonstration Overview
 
-## PART 1: Backend Setup
-Tested on an Apple Macbook Pro M1 16GB running:
-- macOS Sequoia Version 15.0.1
-- Docker Desktop v4.34.3
-- Docker v23.0.2
-- Kubernetes v1.26.3
-- miniKube v1.34.0
-- kubectl v1.31.2
-- protoc-gen-go v1.35.1
-- protoc-gen-go-grpc 1.5.1
-- libprotoc 28.3
-- go version 1.23.2 darwin/arm64
+Implementation of a TinyURL service.
+This project implements a distributed system using the Chord Protocol, with a TinyURL-like application
+as the use case. The Chord protocol is a peer-to-peer distributed hash table (DHT) that helps with efficient lookup, insertion and replication of data across a network of nodes. Our TinyURL application leverages this decentralised architecture to provide URL shortening services with fault tolerance, scalability and consistency.
 
-## Installation
-```
-brew install go
-brew install kubectl
-brew install Docker
-brew install minikube
-```
-Note: Docker 4.34.0 is incompatible, upgrade or downgrade accordingly.
+### Storing URLs (`node.StoreURL`)
 
-## Starting minikube
-```
-open /Applications/Docker.app
-minikube start
-```
+The process of storing a long URL - short URL pair within the Chord ring follows these steps:
 
-## Build Docker Image (pushing directly to in-cluster Docker daemon)
-Note: This allows usage of local Docker images, otherwise you'll need to push the image to a registry.
-```
-eval $(minikube docker-env)
-docker ps   # To check containers running inside minikube
-cd src/backend
-docker build -t chord-url-shortening:v1.0 .
-```
+1. Client Request: The `ClientSendStoreURL` function is called to initiate a URL storage request. The storage request consists of a short URL, long URL and its timestamp.
+2. RPC Calling: The request is sent via an RPC message to the target node in the Chord ring
+3. Incoming Requests: The receiving node processes the RPC request through the `HandleIncomingMessage` method which identifies the message type and routes it to the `StoreURL` function.
+4. Storing data: The method saves the URL in the node's local data store (URLMap). It also updates the cache to include the new URL for quicker retrieval during future requests.
 
-## Deploy to K8S Cluster
-```
-kubectl apply -f deployment.yaml
-kubectl apply -f service.yaml
-```
+### Retrieving URL (`node.RetrieveURL`)
 
-## Access Cluster via minikube
-```
-minikube service chord-url-shortening
-```
+The process of storing retrieving a short URLs within the Chord ring follows these steps:
 
-## Useful Commands
-### kubectl
-1. List pods
-```
-kubectl get pods
-```
-2. Scale Deployments
-```
-kubectl scale deployments/chord-url-shortening --replicas=5
-```
-3. View deployments
-```
-kubectl get deployments
-```
-4. View cluster events
-```
-kubectl get events
-```
-5. View kubectl configuration
-```
-kubectl config view
-```
-6. View logs of a particular pod
-```
-kubectl logs [pod-name]
-```
-7. Expose an external IP for a deployment
-```
-kubectl expose deployment [deployment-name] --type=LoadBalancer --port=3000
-```
-8. View services
-```
-kubectl get services
-```
-9. Troubleshooting
-```
-kubectl describe pods
-kubectl exec [pod-name] [cli-command] # Execute command on the container
-kubectl exec "$POD_NAME" -- env # Prints the pod's environment variables
-kubectl exec -ti [pod-name] -- bash # Starts a bash session in the pod's container
-```
-10. View ReplicaSet
-```
-kubectl get rs
-```
-11. Cleanup
-```
-kubectl delete service [deployment-name]
-kubectl delete deployment [deployment-name]
-```
+1. Client Request: Client sends a request to retrieve a URL by calling the `ClientRetrieveURL` function with the Short URL
+2. RPC Calling: The request is sent via an RPC message to the target node in the Chord ring
+3. Routing the Request: The request is routed through the `HandleIncomingMessage` method which identifies the message type and forwards it to the `RetrieveURL` method for retrieval
+4. Retrival: The `RetrieveURL` method first checks the cache for the URL. If it already exists in the cache (cache hit), it is returned immediately. However, if there is a cache miss, it will first check the primary node responsible for the shortURL. If it is not present in the primary node's local store, it will check the replicas which are stored in the primary node's successor list. This has been implemented for fault tolerance.
+5. Updating the Cache: When the URL has been retrieved from the primary node or the replica, the cache is updated with the retrieved data, especially the timestamp.
 
-### minikube
-1. Launch minikube dashboard
-```
-minikube dashboard
-```
-2. Access a service's external IP via minikube
-```
-minikube service [deployment-name]
-```
-3. Stop the minikube cluster
-```
-minikube stop
-```
+### Additional features on top of the basic Chord functionalities
 
----
+#### Successor List
 
-## PART 2: Using gRPC
-### Install protoc-gen-go and protoc-gen-go-grpc
-```
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-export PATH="$PATH:$(go env GOPATH)/bin"
-protoc-gen-go --version
-protoc-gen-go-grpc --version
-```
+To increase robustness, each Chord node maintains a successor list of size `r`, and it contains the first `r` successors. If the immediate successor does not respond, the node can substitute the next entry in the successor list.
 
-### Generate / Regenerate gRPC code
-```
-cd src/backend
-protoc --go_out=. --go_opt=paths=source_relative \
-    --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-    chordurlshortening/chordurlshortening.proto
-```
+#### Data Replication
 
-## PART 3: Suggested Development Workflow
-1. Install necessary software
-2. Start minikube
-```
-open /Applications/Docker.app
-minikube start
-```
-3. Build Docker image and deploy to K8S cluster (you can change the 'REPLICAS' var in deploy.sh to set number of pods)
-```
-chmod +x deploy.sh
-./deploy.sh
-```
-4. Modify .go and / or .proto files
-5. If you modified .proto files, generate / regenerate gRPC go files
-```
-cd src/backend
-protoc --go_out=. --go_opt=paths=source_relative \
-    --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-    chordurlshortening/chordurlshortening.proto
-```
-6. Re-build and re-deploy the Docker image onto K8S cluster
-```
-./deploy.sh
-```
-7. Test using curl
-8. Test using Postman (remember to disable 'Connection': 'keep-alive' under the headers tab if you want to be able to test load-balancing, otherwise you'll be routed to the same pod)
-9. Troubleshoot, debug, then repeat from step 4
+We have implemented data replication as part of our fault tolerance as this ensures high availability by storing multiple copies of data on successor nodes. We have also used timestamp-based conflict resolution to ensure consistency during updates.
 
-## PART 4: Simulating Chord Node Failures
-You can simulate a Chord node failure by simply adjusting the number of replicas in the K8S cluster (E.g. Change it from 5 to 4). Here's the command to do so:
-```
-kubectl scale deployments/chord-url-shortening --replicas=4
-```
+#### Cache
 
----
+Our application includes a local caching mechanism to optimise URL retrieval and reduce lookup latency. The cache is designed to enhance performance by minimising the need to query the distributed Chord ring for frequenty accessed URLs. Each node maintains a local cache as a key-value store (shortURL: longURL, timestamp) along with other key features:
 
-## References
-1. https://kubernetes.io/docs/setup/
-2. https://minikube.sigs.k8s.io/docs/start/
-3. https://kubernetes.io/docs/tutorials/kubernetes-basics/create-cluster/cluster-intro/
-4. https://minikube.sigs.k8s.io/docs/handbook/pushing/
-5. https://www.tutorialworks.com/kubernetes-pod-ip/ 
-6. https://grpc.io/docs/languages/go/quickstart/
-7. https://github.com/grpc/grpc-go 
-8. https://grpc.io/docs/languages/go/basics/ 
+- Size Limit: The cache has a limit of 10 entries per node and uses the LRU policy to evict the oldest entries when the cache is full
+- Cache Lookup:
+  - Cache Hit: URL is returned immediately, which means hot count is also reduced
+  - Cache Miss: Request to retrieve URL is forwarded to the Chord ring for resolution
 
-## Notes
-- Currently, grpc calls initiate a new connection every time a call is made. How to reduce connections and use long-lived connections to improve performance?
-- Also, grpc calls only use simple client-server calls, using more advanced features like bidirectional streaming might help make things more efficient.
-- When a pod makes a call to the cluster IP, there is a chance that the request is routed back to the same pod. So a simple way to solve this is to check if IP of the 'other node' is the same, if same, just make the request again until the IP is different, denoting another pod is contacted, not itself. Probably should look into different load balancing algorithms or how to block re-routing a request back to the same pod.
+# Demo Walkthrough
+
+## Network Creation
+
+Start the interactive menu and enter `ADD`. This will cause the first node to be added, which will call `CreateNetwork()`.
+
+**Correctness:** Enter `SHOW` to see the network's status. It should only show the one node, with its successor and predecessor both set to itself.
+
+## Joining Network
+
+Enter `ADD` three more times. This will cause more nodes to be added, which will call `JoinNetwork()`.
+
+**Correctness:** Enter `SHOW` to see the network's status. It should now show all nodes that have been created thus far. The nodes should all have the correct successors and predecessors, such that it forms a ring.
+
+## Successor List and Data Replication
+
+Enter `ADD` four more times to add some more nodes, for seven in total. Then, enter `STORE` followed by any URL to store it in the network.
+
+**Correctness:** Enter `SHOW` to see the network's status. All nodes except 1 (since we have a successor list length of 5) should have some entry containing the URL.
+
+## Cache
+
+_Continued from "Successor List" above._
+
+**Correctness:** The node that receives the `STORE` request should also have a cache entry for the URL.
+
+# Fault Tolerance
+
+## Voluntary Leaving
+
+In the interactive menu, enter `DEL`, followed by the IP address of the node you wish to trigger to voluntarily leave. The node will send messages to its successor and predecessor to facilitate the voluntary leaving procedure, and then freeze.
+
+**Correctness:** Enter `SHOW` to see the network's status. The node will still show up in the menu with successors and predecessors unchanged (since `DEL` essentially freezes the node). The leaving node's successor predecessor should be set to the leaving node's predecessor, and it should have obtained the keys from the leaving node. The leaving node's predecessor successor list should now have the last node of the leaving node's successor list. 
+
+## Fail-Stop Faults: Permanent Fault
+
+In the interactive menu, enter `FAULT`, followed by the IP address of the node you wish to fault. The node will simply freeze.
+
+> The main differences between `FAULT` and `DEL` are:
+>
+> - `FAULT` does not initiate voluntary leaving procedure, while `DEL` does.
+>   - The voluntary leaving procedure is an optimization that allows the Chord network to more predictably account for the leaving node than if it had simply frozen. However, both should eventually be successfully recovered from.
+> - In our interactive menu, nodes that get `FAULT`ed can be recovered with `FIX` (elaborated on later), while `DEL` is permanent.
+
+**Correctness:** Enter `SHOW` to see the network's status. The node will still show up in the menu with successors and predecessors unchanged (since `FAULT` essentially freezes the node), but the successor and predecessor of the node that left should themselves have changed their own predecessor resp. successor to form a new, fixed ring.
+
+## Fail-Stop Faults: Intermittent Fault
+
+In the interactive menu, enter `FAULT`, followed by the IP address of another node you wish to fault. The node will simply freeze.
+
+**Correctness:** Same as permanent fault.
+
+Then, enter `FIX`, followed by the IP address of the same node. The node will unfreeze and restart accepting RPC calls.
+
+**Correctness:** Enter `SHOW` to see the network's status. The successor and predecessor of the fixed node should now themselves also list their predecessor resp. successor as the fixed node.
+
+# Scalability
+
+Our main mechanisms for addressing scalability are:
+- The Chord system itself
+- Performance of our cache
+
+Therefore, we plan to perform some experiments that examine both these aspects.
+
+## Experiments
+
+In the menu, enter `EXPERIMENT` to run an experiment. The experiments are designed to be self-contained, and should be run in isolation of other menu commands. On completion of an experiment and to run another experiment, the script has to be restarted.
+
+### Independent Variables
+
+- Number of nodes
+- Number of URLs stored
+  - The pool of URLs stored in the network, that can possibly be retrieved during a certain experiment.
+- Number of retrieval requests made
+  - The number of retrieval requests made.
+  - Each request will target a random URL from the pool of URLs stored.
+
+We separately specify the number of URLs stored and the number of retrieval requests made, because we often wish to control the amount of retrieval requests that are made to the same URL.
+
+For instance, if we have 100 URLs stored and 100 retrieval requests made, the average number of requests per URL will be 1.
+
+If, on the other hand, we have 10 URLs stored and 100 retrieval requests made, each URL will on average be retrieved 10 times. This allows us to inspect the impact of the cache, which mostly improves performance of repeat retrievals of the same URL.
+
+### Dependent Variables
+
+- Average time taken per URL retrieval
+- Average number of RPC calls per URL retrieval
+
+The above two metrics are recorded once with the cache activated, and another time without. In this way, we may examine the impact of having a cache.
+
+### Experiment 1: Impact of number of nodes in the Chord Ring on the retrieval time
+
+> This experiment is to test how the number of calls made and the time taken scales with an increasing number of nodes in the system. 
+
+Independent variable:
+
+- The number of nodes in the Chord Ring
+
+Fixed variables:
+
+- Quantity of URLs: 1000
+- Quantity of retrieval calls: 2000
+
+### Experiment 2: Impact of proportion of retrievals which are repeats in the Chord Ring on the retrieval time
+
+> This experiment is to test the difference made by the cache, since the cache comes into play when retrievals are repeated for the same URL.
+
+Independent variable:
+
+- Quantity of URLs stored
+
+Fixed variables:
+
+- Number of nodes in Chord ring
+- Quantity of retrieval calls: 2000
+
+### Experiment 3: Impact of absolute number of calls in the Chord Ring on the retrieval time
+
+> This experiment is to test whether the absolute number of retrieval calls in the Chord ring impacts the average time taken per call.
+
+Independent variable:
+
+- Absolute number of URLs and number of calls
+
+Fixed variables:
+
+- Ratio of number of URLs stored to number of calls: 1:2 ratio
+- Number of nodes in Chord ring
