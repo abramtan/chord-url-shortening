@@ -131,7 +131,12 @@ func (m *URLMap) copyChildWithoutFoundCheck(idx HashableString) map[ShortURL]URL
 func (m *URLMap) update(idx HashableString, entry map[ShortURL]URLData) {
 	m.Mu.Lock()
 	defer m.Mu.Unlock()
-	m.UrlMap[idx] = entry
+	if _, found := m.UrlMap[idx]; !found {
+		m.UrlMap[idx] = make(map[ShortURL]URLData)
+	}
+	for k,v := range(entry) {
+		m.UrlMap[idx][k] = v
+	}
 }
 
 func (m *URLMap) updateChild(idx HashableString, childIdx ShortURL, entry URLData) {
