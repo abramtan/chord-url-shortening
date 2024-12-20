@@ -4,7 +4,6 @@ The chord-url-shortening project is a distributed computing implementation of ur
 
 ## Table of Contents
 
-- [Demo](#demo)
 - [Features](#features)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
@@ -13,10 +12,6 @@ The chord-url-shortening project is a distributed computing implementation of ur
 - [Acknowledgements](#acknowledgements)
 
 ---
-
-## Demo
-
-[Demo Video](https://youtube.com/example)
 
 ![Screenshot](figures/web-app.jpeg)
 
