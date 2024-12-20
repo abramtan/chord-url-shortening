@@ -61,6 +61,9 @@ go run backend/main.go
 Enter `ADD` in the CLI interface to add nodes to the chord ring. For more details, check out `src/backend/README.md` for more details on the backend usage.
 
 ### Start Frontend (NextJS)
+
+Copy the `.env.example` file and rename it to `.env`.
+
 ```bash
 # Navigate to the frontend directory
 cd src/frontend
