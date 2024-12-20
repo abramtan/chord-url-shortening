@@ -41,7 +41,7 @@ const (
 )
 
 const (
-	M           = 10
+	M           = 32
 	REPLICAS    = 5
 	CACHELENGTH = 20
 )

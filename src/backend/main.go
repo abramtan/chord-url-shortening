@@ -217,15 +217,25 @@ func main() {
 			var cacheTime time.Duration
 			var noCacheCalls int
 			var cacheCalls int
+
+			var ncFoundCount int
+			var ncNotFoundCount int
+			var cFoundCount int
+			var cNotFoundCount int
 			// numTimes = int(numTimes)
 			for i := 0; i < numTimes; i++ {
 				for _, short := range shortURLAr {
-					ncCall, ncTime := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
+					ncCall, ncTime, ncfc, ncnfc := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
 					noCacheTime += ncTime
 					noCacheCalls += ncCall
-					cCall, cTime := retrieveAndMeasure(short, nodeAr, clientNode, "cache")
+					ncFoundCount += ncfc
+					ncNotFoundCount += ncnfc
+					
+					cCall, cTime, cfc, cnfc := retrieveAndMeasure(short, nodeAr, clientNode, "cache")
 					cacheTime += cTime
 					cacheCalls += cCall
+					cFoundCount += cfc
+					cNotFoundCount += cnfc
 				}
 			}
 
@@ -280,21 +290,31 @@ func main() {
 			var cacheTime time.Duration
 			var noCacheCalls int
 			var cacheCalls int
+
+			var ncFoundCount int
+			var ncNotFoundCount int
+			var cFoundCount int
+			var cNotFoundCount int
 			for i := 0; i < numCalls; i++ {
 				short := shortURLAr[rand.Intn(len(shortURLAr))]
 
-				ncCall, ncTime := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
+				ncCall, ncTime, ncfc, ncnfc := retrieveAndMeasure(short, nodeAr, clientNode, "nocache")
 				noCacheTime += ncTime
 				noCacheCalls += ncCall
-				cCall, cTime := retrieveAndMeasure(short, nodeAr, clientNode, "cache")
+				ncFoundCount += ncfc
+				ncNotFoundCount += ncnfc
+				cCall, cTime, cfc, cnfc := retrieveAndMeasure(short, nodeAr, clientNode, "cache")
 				cacheTime += cTime
 				cacheCalls += cCall
+				cFoundCount += cfc
+				cNotFoundCount += cnfc
 			}
 
 			menuLog.Println("FINAL EXPERIMENT STATISTICS for", NUMNODES, "nodes and", numURLs, "URLs, with a total of", numCalls, "randomized retrieval calls")
 			menuLog.Println("No Cache Time:", noCacheTime, "No Cache Calls:", noCacheCalls, "Average of No Cache Time:", noCacheTime/time.Duration(numCalls), "Average of No Cache Calls:", float64(noCacheCalls)/float64(numCalls))
 			menuLog.Println("Cache Time:", cacheTime, "Cache Calls:", cacheCalls, "Average of Cache Time:", cacheTime/time.Duration(numCalls), "Average of Cache Calls:", float64(cacheCalls)/float64(numCalls))
-
+			menuLog.Printf("NO CACHE: Found %d URLs, did not find %d URLs\n", ncFoundCount, ncNotFoundCount)
+			menuLog.Printf("CACHE: Found %d URLs, did not find %d URLs\n", cFoundCount, cNotFoundCount)
 			if !(SHOWLOGS == "YES") {
 				node.InfoLog.SetOutput(os.Stdout)
 			}
@@ -347,7 +367,7 @@ func main() {
 	}
 }
 
-func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.Node, retrievalMode string) (int, time.Duration) {
+func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.Node, retrievalMode string) (int, time.Duration, int, int) {
 	node.InfoLog.Println("============================================================")
 	node.InfoLog.Println("Retrieving URL using mode:", retrievalMode)
 	retrieveStart := time.Now()
@@ -355,15 +375,19 @@ func retrieveAndMeasure(shortURL string, nodeAr []*node.Node, clientNode *node.N
 	acquiredURL, calls, found := clientNode.ClientRetrieveURL(shortURL, nodeAr, retrievalMode)
 	retrieveEnd := time.Now()
 
+	foundCount := 0
+	notFoundCount := 0
 	if found {
+		foundCount ++
 		node.InfoLog.Printf("URL Retrieved: %s -> %s\n", acquiredURL.ShortURL, acquiredURL.LongURL)
 	} else {
+		notFoundCount ++
 		node.InfoLog.Println("URL not found")
 	}
 
 	timeTaken := retrieveEnd.Sub(retrieveStart)
 	node.InfoLog.Printf("Time taken to retrieve URL using %s: %v\n", retrievalMode, timeTaken)
-	return calls, timeTaken
+	return calls, timeTaken, foundCount, notFoundCount
 }
 
 // TODO: Clean up the rest of the code
