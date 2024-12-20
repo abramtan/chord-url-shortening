@@ -22,7 +22,6 @@ const (
 	PING                       = "ping"                       // Used to check predecessor.
 	ACK                        = "ack"                        // Used for general acknowledgements.
 	FIND_SUCCESSOR             = "find_successor"             // Used to find successor.
-	FIND_SUCCESSOR_ADD         = "find_successor_add"         // used to check hop count
 	CLOSEST_PRECEDING_NODE     = "closest_preceding_node"     // Used to find the closest preceding node, given a successor id.
 	GET_PREDECESSOR            = "get_predecessor"            // Used to get the predecessor of some node.
 	CREATE_SUCCESSOR_LIST      = "create_successor_list"      // Used in RPC call to get node.Successor
@@ -30,7 +29,6 @@ const (
 	NOTIFY                     = "notify"                     // Used to notify a node about a new predecessor.
 	NOTIFY_ACK                 = "notify_ack"                 // Used to ack a "notify", and possibly send the entries that the new predecessor needs to take on.
 	EMPTY                      = "empty"                      // Placeholder or undefined message type or errenous communications.
-	JOIN                       = "join"                       // testing the join function
 	STORE_URL                  = "store_url"                  // Used to store a url in the node.
 	RETRIEVE_URL               = "retrieve_url"               // Used to retrieve a url from the node.
 	CLIENT_STORE_URL           = "client_store_url"           // Client tells node to store a single short/long URL pair

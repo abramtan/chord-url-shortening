@@ -18,13 +18,10 @@ func (node *Node) HandleIncomingMessage(msg *RMsg, reply *RMsg) error {
 	// log.Println("msg", msg, "node ip", node.ipAddress)
 	log.Println("Message of type", msg, "received.")
 	switch msg.MsgType {
-	case JOIN:
-		log.Println("Received JOIN message")
-		reply.MsgType = ACK
-	case FIND_SUCCESSOR_ADD:
+	case FIND_SUCCESSOR:
 		log.Println("Received FIND SUCCESSOR message")
 		log.Println(msg.TargetHash)
-		successor, curr_hc, currFlow := node.FindSuccessorAddCount(msg.TargetHash, msg.HopCount, msg.CheckFlow) // first value should be the target IP Address
+		successor, curr_hc, currFlow := node.FindSuccessor(msg.TargetHash, msg.HopCount, msg.CheckFlow) // first value should be the target IP Address
 		reply.TargetIP = successor
 		reply.HopCount = curr_hc
 		reply.CheckFlow = currFlow
@@ -383,7 +380,7 @@ func (n *Node) fixFingers() {
 	convToHash := float64(n.ipAddress.GenerateHash()) + math.Pow(2, float64(n.fixFingerNext))
 	// ensure it doesn't exceed the ring
 	convToHash = math.Mod(float64(convToHash), math.Pow(2, M))
-	successor, _, _ := n.FindSuccessorAddCount(Hash(convToHash), 0, make([]HashableString, 0))
+	successor, _, _ := n.FindSuccessor(Hash(convToHash), 0, make([]HashableString, 0))
 
 	n.Mu.Lock()
 	n.fingerTable[n.fixFingerNext] = successor
@@ -591,7 +588,7 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 	n.predecessor = nilHashableString()
 
 	findSuccessorMsg := RMsg{
-		MsgType:    FIND_SUCCESSOR_ADD,
+		MsgType:    FIND_SUCCESSOR,
 		SenderIP:   n.ipAddress,
 		RecieverIP: joiningIP,
 		TargetHash: n.ipAddress.GenerateHash(),
@@ -607,7 +604,7 @@ func (n *Node) JoinNetwork(joiningIP HashableString) {
 	log.Println("Succesfully Joined Network", n, reply)
 }
 
-func (n *Node) FindSuccessorAddCount(targetID Hash, hc int, currFlow []HashableString) (HashableString, int, []HashableString) {
+func (n *Node) FindSuccessor(targetID Hash, hc int, currFlow []HashableString) (HashableString, int, []HashableString) {
 	sizeOfRing := math.Pow(2, M)
 	if targetID > Hash(sizeOfRing) {
 		panic("Bigger than Ring")
@@ -632,7 +629,7 @@ func (n *Node) FindSuccessorAddCount(targetID Hash, hc int, currFlow []HashableS
 	}
 
 	findSuccMsg := RMsg{
-		MsgType:    FIND_SUCCESSOR_ADD,
+		MsgType:    FIND_SUCCESSOR,
 		SenderIP:   ip,
 		RecieverIP: otherNodeIP,
 		TargetHash: targetID,
@@ -648,7 +645,7 @@ func (n *Node) FindSuccessorAddCount(targetID Hash, hc int, currFlow []HashableS
 			}
 		}
 		currFlow = append(currFlow, otherNodeIP)
-		return n.FindSuccessorAddCount(targetID, hc+1, currFlow) // add one for the failed RPC call
+		return n.FindSuccessor(targetID, hc+1, currFlow) // add one for the failed RPC call
 	}
 	return reply.TargetIP, reply.HopCount, reply.CheckFlow
 }
@@ -669,7 +666,7 @@ func (n *Node) ClosestPrecedingNode(targetID Hash) HashableString {
 
 func (n *Node) StoreURL(entry Entry, hc int, currFlow []HashableString) (HashableString, int, []HashableString, error) {
 	// this handles the correct node to send the entry to
-	targetNodeIP, curr_hc, storeCurrFlow := n.FindSuccessorAddCount(HashableString(entry.ShortURL).GenerateHash(), hc, currFlow)
+	targetNodeIP, curr_hc, storeCurrFlow := n.FindSuccessor(HashableString(entry.ShortURL).GenerateHash(), hc, currFlow)
 
 	cacheHash := HashableString("CACHE")
 	_, cacheExists := n.UrlMap.copyChild(cacheHash)
@@ -756,7 +753,7 @@ func (n *Node) RetrieveURL(shortUrl ShortURL, hc int, currFlow []HashableString,
 	InfoLog.Printf("Retrieving URL from primary node for ShortURL: %s", shortUrl)
 
 	// Find the primary node responsible for the ShortURL
-	targetNodeIP, curr_hc, storeCurrFlow := n.FindSuccessorAddCount(HashableString(shortUrl).GenerateHash(), hc, currFlow)
+	targetNodeIP, curr_hc, storeCurrFlow := n.FindSuccessor(HashableString(shortUrl).GenerateHash(), hc, currFlow)
 
 	// Attempt retrieval from the primary node
 	if targetNodeIP == n.ipAddress {
